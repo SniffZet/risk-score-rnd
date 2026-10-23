@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import json
 from enum import StrEnum
 from datetime import datetime
@@ -6,7 +8,7 @@ class BonusState( StrEnum ):
     LOCKED      = "locked"
     UNLOCKED    = "unlocked"
 
-
+@dataclass
 class AccountDetails:
     id: int
     email: str
@@ -45,6 +47,7 @@ class PaymentTerm(StrEnum):
 def parsetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
+@dataclass
 class ServiceDetails:
     id: int
     name: str
@@ -56,6 +59,7 @@ class ServiceDetails:
     status: str
     price: int
 
+    @property
     def is_live(self) -> bool:
         return (self.status in ( ServiceStatus.ACTIVE, ServiceStatus.SUSPENDED, ServiceStatus.PROLONG_WAIT ))
     
