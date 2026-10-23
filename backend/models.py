@@ -56,6 +56,8 @@ class ServiceDetails:
     status: str
     price: int
 
+    def is_live(self) -> bool:
+        return (self.status in ( ServiceStatus.ACTIVE, ServiceStatus.SUSPENDED, ServiceStatus.PROLONG_WAIT ))
     
     @classmethod
     def format_dict( self, data: dict ):
