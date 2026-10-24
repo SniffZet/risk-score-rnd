@@ -31,6 +31,15 @@ function App() {
     setPassword('');
   };
 
+  const handleLogout = () => {
+      setIsAuthenticated(false);
+      setIsModalOpen(false);
+      setActiveTab('home')
+  }
+
+  const handleProfil = () => {
+      setActiveTab('profil')
+  }
   return (
     <div className="app-container">
       <header className="main-header">
@@ -49,6 +58,8 @@ function App() {
           setIsModalOpen(true);
         }}
         onHomeClick={handleHomeClick}
+        onLogoutClick={handleLogout}
+        onProfilClick={}
       />
 
       {isSidebarOpen && (
@@ -94,9 +105,9 @@ function App() {
           </div>
         )}
 
-        <p style={{ marginTop: '20px' }}>
-          Статус: <b>{isAuthenticated ? "Вы авторизованы" : "Вы гость"}</b>
-        </p>
+        {/*<p style={{ marginTop: '20px' }}>*/}
+        {/*  Статус: <b>{isAuthenticated ? "Вы авторизованы" : "Вы гость"}</b>*/}
+        {/*</p>*/}
       </main>
     </div>
   );

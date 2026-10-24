@@ -7,6 +7,8 @@ interface SidebarProps {
   isAuthenticated: boolean;
   onLoginClick: () => void; // Добавляем функцию клика по кнопке "Войти"
   onHomeClick: () => void; // на главную
+    onLogoutClick: () => void;
+    onProfilClick: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -14,7 +16,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   isAuthenticated,
   onLoginClick,
-  onHomeClick
+  onHomeClick,
+    onLogoutClick,
+    onProfilClick
 }) => {
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
@@ -38,7 +42,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Кнопка Выйти (в реальном приложении сюда тоже вешают onClick={onLogout}) */}
           {isAuthenticated && (
-            <li><a href='#logout'>Выйти из аккаунта</a></li>
+            <li><button className="menu-btn" onClick={onLogoutClick}>
+                Выйти
+            </button>
+            </li>
           )}
 
           <li>
@@ -46,7 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   На главную
               </button>
           </li>
-          <li><a href="#profile">Профиль</a></li>
+            <li><button className="menu-btn" onClick={onProfilClick}>
+                Профиль
+            </button>
+            </li>
           <li><a href="#settings">Настройки приоритета</a></li>
         </ul>
       </nav>
