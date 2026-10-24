@@ -1,0 +1,28 @@
+.main-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #f4f4f4;
+}
+
+.menu-btn {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.main-content {
+  padding: 2rem;
+}
+
+/* Слой затемнения */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999; /* Чуть ниже, чем у Sidebar (1000) */
+}
