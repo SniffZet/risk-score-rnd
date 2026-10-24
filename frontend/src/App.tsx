@@ -4,39 +4,35 @@ import './App.css';
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
-
-  // Новые стейты для авторизации и модального окна
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-
-  // Стейты для полей ввода формы
   const [login, setLogin] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
-  const handleHomeClick = () => {
-      setIsSidebarOpen(false);
-      setIsModalOpen(false)
-  };
+  // 1. Добавляем стейт для отслеживания текущего экрана ('home', 'profile', 'settings')
+  const [activeTab, setActiveTab] = useState<string>('home');
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // Обработчик отправки формы авторизации
+  // 2. Теперь эта функция не просто закрывает меню, а возвращает на главный экран
+  const handleHomeClick = () => {
+    setActiveTab('home');    // Переключаем экран на главный
+    setIsSidebarOpen(false); // Закрываем сайдбар
+    setIsModalOpen(false);   // Закрываем модалку, если была открыта
+  };
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Имитируем успешный вход
     setIsAuthenticated(true);
-    setIsModalOpen(false); // Закрываем окно авторизации
-
-    // Очищаем поля формы
+    setIsModalOpen(false);
     setLogin('');
     setPassword('');
   };
 
   return (
     <div className="app-container">
-      {/* Кнопка для открытия сайдбара */}
       <header className="main-header">
         <button className="menu-btn" onClick={toggleSidebar}>
           ☰
@@ -44,24 +40,21 @@ function App() {
         <h1>АНАЛИЗАТОР РИСКОВ ОТТОКА</h1>
       </header>
 
-      {/* Компонент боковой панели с переданными пропсами авторизации */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         isAuthenticated={isAuthenticated}
         onLoginClick={() => {
-          setIsSidebarOpen(false); // Закрываем сайдбар
-          setIsModalOpen(true);    // Открываем модальное окно входа
+          setIsSidebarOpen(false);
+          setIsModalOpen(true);
         }}
         onHomeClick={handleHomeClick}
       />
 
-      {/* Затемняющий слой заднего фона для Сайдбара */}
       {isSidebarOpen && (
         <div className="overlay" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {/* --- МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ (Встроенное) --- */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -73,33 +66,37 @@ function App() {
             <form onSubmit={handleLoginSubmit} className="login-form">
               <div className="form-group">
                 <label>Логин или Email:</label>
-                <input
-                  type="text"
-                  value={login}
-                  onChange={(e) => setLogin(e.target.value)}
-                  required
-                />
+                <input type="text" value={login} onChange={(e) => setLogin(e.target.value)} required />
               </div>
-
               <div className="form-group">
                 <label>Пароль:</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
-
               <button type="submit" className="submit-btn">Войти</button>
             </form>
           </div>
         </div>
       )}
 
+      {/* 3. Меняем контент в зависимости от activeTab */}
       <main className="main-content">
-        <p>Основной контент страницы...</p>
-        <p>Статус: <b>{isAuthenticated ? "Вы авторизованы" : "Вы гость"}</b></p>
+        {activeTab === 'home' && (
+          <div>
+            <h2>Главная страница</h2>
+            <p>Добро пожаловать в Анализатор рисков оттока. Здесь отображается основной контент...</p>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div>
+            <h2>Личный профиль</h2>
+            <p>Информация о пользователе и его статистика рисков.</p>
+          </div>
+        )}
+
+        <p style={{ marginTop: '20px' }}>
+          Статус: <b>{isAuthenticated ? "Вы авторизованы" : "Вы гость"}</b>
+        </p>
       </main>
     </div>
   );

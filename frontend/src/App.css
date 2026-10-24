@@ -26,3 +26,90 @@
   background: rgba(0, 0, 0, 0.4);
   z-index: 999; /* Чуть ниже, чем у Sidebar (1000) */
 }
+/* Затемняющий фон модального окна на весь экран */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5); /* Полупрозрачный черный цвет */
+  display: flex;
+  justify-content: center; /* Центрирование по горизонтали */
+  align-items: center;     /* Центрирование по вертикали */
+  z-index: 9999;           /* Окно должно быть выше всех элементов на сайте */
+}
+
+/* Само белое окошко с формой */
+.modal-content {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px; /* Ограничиваем максимальную ширину */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  color: #333333; /* Цвет текста внутри модалки */
+}
+
+/* Шапка модального окна */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+/* Кнопка закрытия (крестик) */
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666666;
+}
+
+.modal-close-btn:hover {
+  color: #000000;
+}
+
+/* Стилизация формы */
+.login-form .form-group {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form label {
+  margin-bottom: 5px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.login-form input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+/* Кнопка отправки формы */
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #007bff; /* Синий цвет, можете изменить под свой дизайн */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.submit-btn:hover {
+  background-color: #0056b3;
+}
