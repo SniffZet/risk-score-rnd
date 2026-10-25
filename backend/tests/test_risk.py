@@ -1,4 +1,3 @@
-# python -m unittest discover -s backend/tests -t . -v
 
 import json
 import unittest
@@ -197,7 +196,7 @@ class Scenarios( unittest.TestCase ):
         self.assertEqual(remind.action.code, "remind_payment")
         bonus = score_one([account(balance=0, bonus=5000)],
                           [service(status="prolong_wait", expires="2026-10-18T15:00:00.000Z")])
-        self.assertEqual(bonus.action.code, "topup_nudge")  # zablokirovannye bonusy ne menyayut deistvie
+        self.assertEqual(bonus.action.code, "topup_nudge")
         auto = score_one([account()], [service(auto=False, expires="2026-10-21T15:00:00.000Z")])
         self.assertEqual(auto.action.code, "enable_autoprolong")
 
@@ -297,7 +296,6 @@ class NewFeatures( unittest.TestCase ):
         self.assertEqual(lateness(parsetime("2026-01-10T00:00:00Z"), weekly), timedelta(days=2))
 
     def test_reliable_manual_renewer_softens_expiry( self ):
-        # sozdana 2026-01-01: oplaty 1-go chisla - vovremya
         expiring = [service(auto=False, expires="2026-10-21T15:00:00.000Z")]
         onTime = [tx(1, 1, created="2026-07-01T00:00:00.000Z"), tx(2, 1, created="2026-08-01T00:00:00.000Z"),
                   tx(3, 1, created="2026-09-01T00:00:00.000Z")]
@@ -306,16 +304,14 @@ class NewFeatures( unittest.TestCase ):
         reason = next(r for r in soft.reasons if r.feature == "reliable_manual_renewer")
         self.assertEqual(reason.kind, "protective")
         self.assertEqual(reason.strength, 0.5)
-        self.assertAlmostEqual(soft.score, plain.score * 0.85, delta=0.15)  # score okruglen do 0.1
+        self.assertAlmostEqual(soft.score, plain.score * 0.85, delta=0.15)
         self.assertEqual(soft.action.code, "enable_autoprolong")
-        # nedavnyaya neoplata, malo istorii, pozdnie oplaty - zashchity net
         failed = onTime + [tx(4, 1, performed=False, created="2026-10-01T00:00:00.000Z")]
         self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, failed)))
         self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, onTime[:2])))
         late = [tx(1, 1, created="2026-07-03T00:00:00.000Z"), tx(2, 1, created="2026-08-03T00:00:00.000Z"),
                 tx(3, 1, created="2026-09-03T00:00:00.000Z")]
         self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, late)))
-        # bez istecheniya snizhat' nechego
         calm = [service(auto=False, expires="2027-10-19T15:00:00.000Z")]
         self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], calm, onTime)))
 

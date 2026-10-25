@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +51,12 @@ class Settings(BaseSettings):
 
     SSE_QUEUE_SIZE: int = 100
     SSE_HEARTBEAT_SEC: int = 15
+
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_WINDOW_SEC: int = Field(default=60, ge=1)
+    RATE_LIMIT_API_REQUESTS: int = Field(default=300, ge=1)
+    RATE_LIMIT_LOGIN_REQUESTS: int = Field(default=5, ge=1)
+    RATE_LIMIT_MAX_CLIENTS: int = Field(default=10_000, ge=1)
 
     @property
     def oidc_enabled(self) -> bool:

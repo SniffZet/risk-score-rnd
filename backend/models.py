@@ -14,7 +14,7 @@ class AccountDetails:
     email: str
     balance: int
     withdrawBalance: int
-    totalReplenished: int # total topup
+    totalReplenished: int
     bonusBalance: int
     bonusState: BonusState
     @classmethod
@@ -122,13 +122,11 @@ class Snapshot:
             transactions=[TransactionDetails.format_dict(x) for x in data.get("transactions", [])],
         )
 
-    # testovye dannye zamorozheny, seichas = poslednee sobytie
     def latest_event(self) -> datetime | None:
         moments = [s.createdAt for s in self.services]
         moments += [t.performedAt or t.createdAt for t in self.transactions]
         return max(moments, default=None)
 
-####
 
 TERM_DAYS = {
     PaymentTerm.HOUR:           1 / 24,

@@ -56,7 +56,6 @@
           "auth"
         ],
         "summary": "Доступные способы входа",
-        "description": "Без авторизации: экран входа решает, показывать ли кнопку SSO.\nДанных клиентов здесь нет.",
         "operationId": "providers_api_v1_auth_providers_get",
         "responses": {
           "200": {
@@ -65,6 +64,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProvidersOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -100,6 +117,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -127,6 +162,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -160,6 +213,24 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -184,6 +255,24 @@
                 "schema": {}
               }
             }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
           }
         }
       }
@@ -201,6 +290,24 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
               }
             }
           }
@@ -331,6 +438,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Ожидание, секунды"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -350,7 +475,6 @@
           "customers"
         ],
         "summary": "Выгрузка клиентов в CSV",
-        "description": "Тот же список с теми же фильтрами, но целиком: для рассылки или CRM.",
         "operationId": "export_csv_api_v1_customers_export_csv_get",
         "security": [
           {
@@ -436,6 +560,24 @@
               "text/csv": {}
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Ожидание, секунды"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -483,6 +625,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Ожидание, секунды"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -513,6 +673,24 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -528,7 +706,6 @@
           "analytics"
         ],
         "summary": "График оттока: факт и прогноз",
-        "description": "Считается моделью при каждом пересчёте, поэтому зависит от весов и порогов.\n\nФакт — удалённые услуги (дата наблюдённая из журнала или оценка по концу\nоплаченного периода). Прогноз — ожидаемые непродления и услуги под риском\nпо дате ближайшего списания в горизонте.",
         "operationId": "churn_chart_api_v1_analytics_churn_chart_get",
         "responses": {
           "200": {
@@ -537,6 +714,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChurnChartOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -555,7 +750,6 @@
           "analytics"
         ],
         "summary": "Журнал переходов статусов",
-        "description": "История, которой нет в исходных данных: анализатор накапливает её сам,\nсравнивая каждый новый снимок с предыдущим.",
         "operationId": "journal_api_v1_analytics_journal_get",
         "security": [
           {
@@ -627,6 +821,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Ожидание, секунды"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -654,6 +866,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -692,6 +922,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -716,7 +964,6 @@
           "model"
         ],
         "summary": "Что-если: сводка без сохранения",
-        "description": "Та же проверка и тот же расчёт, что в PATCH, но результат никуда не\nзаписывается и подписчикам не рассылается: панель показывает, что будет.",
         "operationId": "preview_settings_api_v1_model_settings_preview_post",
         "requestBody": {
           "content": {
@@ -735,6 +982,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SettingsPreviewOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -774,6 +1039,24 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -809,6 +1092,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -831,7 +1132,6 @@
           "source"
         ],
         "summary": "Догрузить изменения (upsert по id)",
-        "description": "Для потока в реальном времени: источник шлёт только изменившиеся\nаккаунты, услуги и транзакции. Записи с известным id заменяются, новые\nдобавляются, остальные данные не трогаются. Пересчёт выполняется сразу.",
         "operationId": "patch_snapshot_api_v1_source_snapshot_patch",
         "requestBody": {
           "content": {
@@ -850,6 +1150,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SnapshotOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
                 }
               }
             }
@@ -900,6 +1218,24 @@
               }
             }
           },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -924,7 +1260,6 @@
           "events"
         ],
         "summary": "Поток событий (SSE)",
-        "description": "Отдаёт события ``recalculated``.\n\nОтправляем heartbeat (``ping``), чтобы прокси и браузер не закрывали\n«тихое» соединение.",
         "operationId": "events_api_v1_events_get",
         "responses": {
           "200": {
@@ -932,6 +1267,24 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "429": {
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {
+              "Retry-After": {
+                "description": "Ожидание, секунды",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitOut"
+                }
               }
             }
           }
@@ -1038,8 +1391,7 @@
           "title",
           "text"
         ],
-        "title": "ActionOut",
-        "description": "Совпадает с ``risk.actions.Action``: что маркетологу делать с клиентом."
+        "title": "ActionOut"
       },
       "Body_put_snapshot_file_api_v1_source_snapshot_file_put": {
         "properties": {
@@ -1270,8 +1622,7 @@
           "availableFunds",
           "capacity"
         ],
-        "title": "CustomerDetail",
-        "description": "Карточка клиента: добавляются причины, разбивка по услугам и история."
+        "title": "CustomerDetail"
       },
       "CustomerListItem": {
         "properties": {
@@ -1382,8 +1733,7 @@
           "availableFunds",
           "capacity"
         ],
-        "title": "CustomerListItem",
-        "description": "Строка списка клиентов."
+        "title": "CustomerListItem"
       },
       "CustomersPage": {
         "properties": {
@@ -1464,8 +1814,7 @@
           "services",
           "expectedLoss"
         ],
-        "title": "FeatureImpactOut",
-        "description": "Совпадает с ``risk.scoring.FeatureImpact``: вклад признака в портфель."
+        "title": "FeatureImpactOut"
       },
       "FeatureMeta": {
         "properties": {
@@ -1513,8 +1862,7 @@
           "description",
           "default_weight"
         ],
-        "title": "FeatureMeta",
-        "description": "Признак для построения формы настроек на фронте.\n\nГраницы веса (0..1) заданы здесь, чтобы фронт не хардкодил их."
+        "title": "FeatureMeta"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1599,8 +1947,27 @@
           }
         },
         "type": "object",
-        "title": "ProvidersOut",
-        "description": "Какие способы входа доступны: фронт показывает кнопку SSO только при OIDC."
+        "title": "ProvidersOut"
+      },
+      "RateLimitOut": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "retryAfter": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Retryafter",
+            "description": "Ожидание до повторного запроса, секунды"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "retryAfter"
+        ],
+        "title": "RateLimitOut"
       },
       "ReasonOut": {
         "properties": {
@@ -1662,8 +2029,7 @@
           "impact",
           "text"
         ],
-        "title": "ReasonOut",
-        "description": "Совпадает с ``risk.scoring.Reason``."
+        "title": "ReasonOut"
       },
       "ServiceDetails": {
         "properties": {
@@ -1797,8 +2163,7 @@
           "expectedLoss",
           "nextChargeAt"
         ],
-        "title": "ServiceRiskOut",
-        "description": "Совпадает с ``risk.scoring.ServiceRisk``."
+        "title": "ServiceRiskOut"
       },
       "ServiceStatus": {
         "type": "string",
@@ -2056,8 +2421,7 @@
         },
         "additionalProperties": false,
         "type": "object",
-        "title": "SettingsPatch",
-        "description": "Частичное обновление: приходит только то, что реально меняют."
+        "title": "SettingsPatch"
       },
       "SettingsPreviewOut": {
         "properties": {
@@ -2073,8 +2437,7 @@
           "settings",
           "summary"
         ],
-        "title": "SettingsPreviewOut",
-        "description": "Что-если: сводка с пробными настройками, ничего не сохранено."
+        "title": "SettingsPreviewOut"
       },
       "Snapshot": {
         "properties": {
@@ -2136,8 +2499,7 @@
           }
         },
         "type": "object",
-        "title": "SnapshotIn",
-        "description": "Тело PUT /source/snapshot.\n\nРазделы объявлены списками словарей намеренно: формат ``data.json`` —\nвнешний, и строгая проверка выполняется в ``services.normalize``, которая\nдаёт понятные ошибки с номерами записей."
+        "title": "SnapshotIn"
       },
       "SnapshotOut": {
         "properties": {
@@ -2213,8 +2575,7 @@
           }
         },
         "type": "object",
-        "title": "SnapshotPatchIn",
-        "description": "Тело PATCH /source/snapshot: только изменившиеся записи, upsert по id."
+        "title": "SnapshotPatchIn"
       },
       "SummaryOut": {
         "properties": {
@@ -2297,8 +2658,7 @@
           "revenueFullTotal",
           "servicesAtRisk"
         ],
-        "title": "SummaryOut",
-        "description": "Совпадает с ``risk.scoring.Summary``."
+        "title": "SummaryOut"
       },
       "TokenOut": {
         "properties": {
@@ -2436,8 +2796,7 @@
           "field",
           "new"
         ],
-        "title": "TransitionOut",
-        "description": "Запись журнала: наблюдённое изменение услуги между снимками."
+        "title": "TransitionOut"
       },
       "UserOut": {
         "properties": {

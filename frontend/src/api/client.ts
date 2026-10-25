@@ -4,7 +4,7 @@ import type {
 } from './types';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public retryAfter?: number) {
     super(message);
   }
 }
@@ -55,7 +55,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     const payload = await res.json().catch(() => null);
     if (res.status === 401 && path !== '/api/v1/auth/login') handleUnauthorized();
-    throw new ApiError(res.status, errorText(payload, `${res.status} ${res.statusText}`));
+    const seconds = Number(res.headers.get('Retry-After'));
+    const retryAfter = res.status === 429 && Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+    throw new ApiError(res.status, errorText(payload, `${res.status} ${res.statusText}`), retryAfter);
   }
   if (res.status === 204) return undefined as T;
   return res.json();

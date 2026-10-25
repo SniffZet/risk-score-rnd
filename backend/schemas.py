@@ -26,6 +26,11 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class RateLimitOut(BaseModel):
+    detail: str
+    retryAfter: int = Field(ge=1, description="Ожидание до повторного запроса, секунды")
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

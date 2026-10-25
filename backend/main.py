@@ -18,7 +18,9 @@ from backend.repository import (
     set_repository,
 )
 from backend.repository_file import FileRepository
+from backend.rate_limit import RateLimiter, RateLimitMiddleware
 from backend.routers import analytics, auth, customers, events, model_settings, oidc, source
+from backend.schemas import RateLimitOut
 from backend.security import hash_password
 from backend.services.recompute import recompute
 from backend.services.seed import seed_if_empty
@@ -141,12 +143,23 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    if settings.RATE_LIMIT_ENABLED:
+        limiter = RateLimiter(
+            window=settings.RATE_LIMIT_WINDOW_SEC,
+            api_limit=settings.RATE_LIMIT_API_REQUESTS,
+            login_limit=settings.RATE_LIMIT_LOGIN_REQUESTS,
+            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+        )
+        app.state.rate_limiter = limiter
+        app.add_middleware(RateLimitMiddleware, limiter=limiter, prefix=settings.API_PREFIX)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
     )
 
     if settings.oidc_enabled:
@@ -166,13 +179,23 @@ def create_app() -> FastAPI:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     prefix = settings.API_PREFIX
-    app.include_router(auth.router, prefix=f"{prefix}/auth", tags=["auth"])
-    app.include_router(oidc.router, prefix=f"{prefix}/auth", tags=["auth"])
-    app.include_router(customers.router, prefix=f"{prefix}/customers", tags=["customers"])
-    app.include_router(analytics.router, prefix=f"{prefix}/analytics", tags=["analytics"])
-    app.include_router(model_settings.router, prefix=f"{prefix}/model", tags=["model"])
-    app.include_router(source.router, prefix=f"{prefix}/source", tags=["source"])
-    app.include_router(events.router, prefix=prefix, tags=["events"])
+    rate_limit_responses = {
+        429: {
+            "model": RateLimitOut,
+            "description": "Превышен лимит запросов с IP-адреса",
+            "headers": {"Retry-After": {"schema": {"type": "integer"}, "description": "Ожидание, секунды"}},
+        },
+    }
+    for route, suffix, tag in (
+        (auth.router, "/auth", "auth"),
+        (oidc.router, "/auth", "auth"),
+        (customers.router, "/customers", "customers"),
+        (analytics.router, "/analytics", "analytics"),
+        (model_settings.router, "/model", "model"),
+        (source.router, "/source", "source"),
+        (events.router, "", "events"),
+    ):
+        app.include_router(route, prefix=prefix + suffix, tags=[tag], responses=rate_limit_responses)
 
     @app.get("/health", tags=["system"], summary="Проверка живости")
     async def health() -> dict:

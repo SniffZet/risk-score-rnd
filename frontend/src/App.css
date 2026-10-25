@@ -1095,7 +1095,6 @@ input[type='checkbox'] {
 }
 .reason-bar.protective div { background: var(--low); }
 
-/* Navigation and progressive disclosure for the analyst workflow. */
 .tile-link { align-self: flex-start; margin-top: 12px; }
 .legend-button, .sort-button {
   border: 0; background: transparent; color: inherit; font: inherit;
