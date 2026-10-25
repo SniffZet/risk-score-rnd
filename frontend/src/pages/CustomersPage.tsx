@@ -28,7 +28,7 @@ function readParams() {
     zone: (ZONES.some((z) => z.value === zone) ? zone : '') as Zone,
     sort: (SORT_KEYS.includes(p.get('sort') as SortKey) ? p.get('sort') : 'score') as SortKey,
     order: (p.get('order') === 'asc' ? 'asc' : 'desc') as SortOrder,
-    page: Number(p.get('page') ?? 1),
+    page: Math.max(1, Math.floor(Number(p.get('page')) || 1)),
   };
 }
 
@@ -44,9 +44,10 @@ export const CustomersPage: React.FC<{ onOpenCustomer: (id: number) => void }> =
   const summary = useResource(() => api.summary(), []);
 
   useEffect(() => {
+    if (searchInput === search) return;
     const t = window.setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
     return () => window.clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -108,10 +109,10 @@ export const CustomersPage: React.FC<{ onOpenCustomer: (id: number) => void }> =
 
   return (
     <div className="clients-section">
-      <h2>Кто в зоне риска</h2>
+      <h2>Клиенты</h2>
       <p className="muted">
-        Зона риска — клиенты с высоким и средним уровнем. Самый высокий score сверху, при равном score выше тот,
-        где больше ожидаемых потерь. Клик по заголовку — сортировка, повторный клик — в обратную сторону.
+        Выберите сегмент и порядок работы с клиентами. Зона риска объединяет высокий и средний уровни.
+        Для сортировки используйте список или заголовки колонок.
       </p>
 
       <div className="chips" role="radiogroup" aria-label="Сегмент">
@@ -139,6 +140,16 @@ export const CustomersPage: React.FC<{ onOpenCustomer: (id: number) => void }> =
           className="search-input"
           aria-label="Поиск по email"
         />
+        <select className="filter-select" aria-label="Сортировка клиентов" value={`${sort}:${order}`} onChange={(e) => {
+          const [key, direction] = e.target.value.split(':');
+          setSort(key as SortKey); setOrder(direction as SortOrder); setPage(1);
+        }}>
+          {SORT_KEYS.flatMap((key) => (['desc', 'asc'] as const).map((direction) => (
+            <option key={`${key}:${direction}`} value={`${key}:${direction}`}>
+              {({ accountId: 'ID', email: 'Email', balance: 'Баланс', totalReplenished: 'Пополнено', score: 'Риск', expectedLoss: 'Потери', revenue: 'Выручка', loyalty: 'Лояльность' })[key]} · {direction === 'desc' ? 'по убыванию' : 'по возрастанию'}
+            </option>
+          )))}
+        </select>
         <button className="btn" onClick={handleExport} title="Выгрузить текущий список целиком">Скачать CSV</button>
       </div>
 

@@ -1094,3 +1094,23 @@ input[type='checkbox'] {
   white-space: nowrap;
 }
 .reason-bar.protective div { background: var(--low); }
+
+/* Navigation and progressive disclosure for the analyst workflow. */
+.tile-link { align-self: flex-start; margin-top: 12px; }
+.legend-button, .sort-button {
+  border: 0; background: transparent; color: inherit; font: inherit;
+  cursor: pointer; padding: 6px 0; text-align: inherit;
+}
+.legend-button:hover, .sort-button:hover { color: var(--accent-ink); }
+.priority-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.explanation summary { cursor: pointer; font-weight: 500; padding: 8px 0; }
+.explanation[open] > summary { margin-bottom: 12px; }
+.reason-calculation { color: var(--muted); font-size: 13px; }
+.reason-calculation summary { padding: 0; }
+button:focus-visible, summary:focus-visible, .clickable:focus-visible {
+  outline: 2px solid var(--accent-ink); outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .filters-container > select { width: 100%; }
+  .action-card .action-badge { white-space: normal; }
+}

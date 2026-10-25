@@ -44,20 +44,33 @@ export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id,
             <LevelBadge level={c.level} />
           </div>
 
+          <section className={`card ${c.action ? 'action-card' : ''}`}>
+            <h3>Что делать</h3>
+            {c.action ? (
+              <>
+                <p><span className="action-badge">{c.action.title}</span></p>
+                <p>{c.action.text}</p>
+              </>
+            ) : (
+              <p className="muted">{c.score === null ? 'Нет активных услуг: клиент для возврата, а не удержания.' : 'Действий не требуется: признаков риска нет.'}</p>
+            )}
+          </section>
+
+
           <div className="tiles">
             <div className="tile tile-accent">
-              <div className="tile-label">Risk score</div>
+              <div className="tile-label">Риск · из 100</div>
               <div className="tile-value">{score(c.score)}</div>
               <div className="tile-sub">
-                {c.loyalty === null ? 'нет активных услуг — оценки нет' : `лояльность ${c.loyalty} из 100`}
+                {c.loyalty === null ? 'нет активных услуг — оценки нет' : `обратная шкала лояльности: ${c.loyalty} из 100`}
               </div>
             </div>
             <div className="tile">
               <div className="tile-label">Можем потерять</div>
               <div className="tile-value">{eur(c.expectedLoss)}</div>
               <div className="tile-sub">
-                из {eur(c.revenue)}, которые клиент заплатит {horizon}
-                {c.revenueFull > c.revenue && <>. Услуги стоят {eur(c.revenueFull)}, но столько у клиента не наберётся</>}
+                из {eur(c.revenue)} прогнозной выручки {horizon}
+                {c.revenueFull > c.revenue && <>. Услуги стоят {eur(c.revenueFull)}, оценка ограничена платёжеспособностью</>}
               </div>
             </div>
             <div className="tile">
@@ -72,17 +85,6 @@ export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id,
             </div>
           </div>
 
-          <section className={`card ${c.action ? 'action-card' : ''}`}>
-            <h3>Что делать</h3>
-            {c.action ? (
-              <>
-                <p><span className="action-badge">{c.action.title}</span></p>
-                <p>{c.action.text}</p>
-              </>
-            ) : (
-              <p className="muted">{c.score === null ? 'Нет активных услуг: клиент для возврата, а не удержания.' : 'Действий не требуется: признаков риска нет.'}</p>
-            )}
-          </section>
 
           <section className="card">
             <h3>Почему такая оценка</h3>
@@ -94,11 +96,11 @@ export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id,
                   <li key={`${r.feature}-${r.serviceId}-${r.text}`}>
                     <div className="reason-head">
                       <b>{r.title}{r.kind === 'protective' && <span className="tag-protective">защитный</span>}</b>
-                      <span className="muted">
+                      <details className="explanation reason-calculation"><summary>Вклад в оценку</summary>
                         {r.kind === 'protective'
                           ? `снижает риск на ${pct(r.impact)} = вес ${r.weight} × сила ${r.strength}`
                           : `вклад ${pct(r.impact)} = вес ${r.weight} × сила ${r.strength}`}
-                      </span>
+                      </details>
                     </div>
                     <div className={`reason-bar ${r.kind === 'protective' ? 'protective' : ''}`}><div style={{ width: pct(r.impact) }} /></div>
                     <div>{r.text}</div>

@@ -146,7 +146,7 @@ function App() {
         <main className="main-content">
           <ErrorBoundary key={`${route.tab}-${route.customer ?? ''}-${navTick}`} title="Страница не отобразилась">
             {route.tab === 'overview' && (
-              <OverviewPage onOpenCustomer={openCustomer} onShowAll={() => openZone('risk')} />
+              <OverviewPage onOpenCustomer={openCustomer} onShowAll={() => openZone('risk')} onSelectLevel={openZone} />
             )}
             {route.tab === 'clients' && route.customer !== null && (
               <CustomerPage

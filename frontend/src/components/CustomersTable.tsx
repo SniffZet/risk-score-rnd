@@ -67,8 +67,8 @@ export const CustomersTable: React.FC<CustomersTableProps> = ({ items, sort, ord
   const aria = (key: SortKey) => (sort !== key ? 'none' : order === 'asc' ? 'ascending' : 'descending');
 
   const header = (key: SortKey, label: string, num?: boolean) => (
-    <th key={key} className={`sortable ${num ? 'num' : ''}`} aria-sort={aria(key)} onClick={() => onSort(key)}>
-      {label}{icon(key)}
+    <th key={key} className={`sortable ${num ? 'num' : ''}`} aria-sort={aria(key)}>
+      <button className="sort-button" onClick={() => onSort(key)}>{label}{icon(key)}</button>
     </th>
   );
 

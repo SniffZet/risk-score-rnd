@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { api } from '../api/client';
 import { useResource } from '../api/live';
 import { PageSkeleton } from '../components/Skeleton';
-import type { SortKey, SortOrder } from '../api/types';
+import type { Level, SortKey, SortOrder } from '../api/types';
 import { ChurnChart } from '../components/ChurnChart';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { CustomersTable, nextSort, sortCustomers } from '../components/CustomersTable';
+import { CustomersTable, nextSort } from '../components/CustomersTable';
 import { FeatureImpactTable } from '../components/FeatureImpact';
 import { JournalList } from '../components/JournalList';
 import { LevelBar, SummaryTiles } from '../components/SummaryTiles';
@@ -18,13 +18,14 @@ const JOURNAL = 8;
 interface OverviewPageProps {
   onOpenCustomer: (id: number) => void;
   onShowAll: () => void;
+  onSelectLevel: (level: Level) => void;
 }
 
-export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCustomer, onShowAll }) => {
+export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCustomer, onShowAll, onSelectLevel }) => {
   const [sort, setSort] = useState<SortKey>('score');
   const [order, setOrder] = useState<SortOrder>('desc');
   const summary = useResource(() => api.summary(), []);
-  const top = useResource(() => api.customers({ level: 'high,medium', sort_by: 'score', sort_order: 'desc', limit: TOP, offset: 0 }), []);
+  const top = useResource(() => api.customers({ level: 'high,medium', sort_by: sort, sort_order: order, limit: TOP, offset: 0 }), [sort, order]);
   const chart = useResource(() => api.churnChart(), []);
   const journal = useResource(() => api.journal({ limit: JOURNAL }), []);
 
@@ -37,23 +38,27 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCustomer, onSh
       <h2>Обзор</h2>
       <p className="muted">Расчёт на {date(s.referenceTime)}, горизонт прогноза {s.horizonDays} дн.</p>
 
-      <SummaryTiles summary={s} />
+      <SummaryTiles summary={s} onSelectLevel={onSelectLevel} />
 
       <section className="card">
         <h3>Клиенты по уровню риска</h3>
-        <LevelBar summary={s} />
+        <LevelBar summary={s} onSelectLevel={onSelectLevel} />
       </section>
 
       <section className="card">
         <h3>Топ-{TOP} в зоне риска</h3>
         <p className="muted">
-          Клиенты с высоким и средним уровнем, самый высокий score сверху. При одинаковом score выше тот,
-          где больше ожидаемых потерь. Колонку можно сменить кликом по заголовку.
+          Выберите, кому уделить внимание первым. При одинаковой оценке риска выше клиент с большими ожидаемыми потерями.
         </p>
+        <div className="priority-controls" aria-label="Приоритет клиентов">
+          <span className="muted">В первую очередь:</span>
+          <button className={`chip ${sort === 'score' && order === 'desc' ? 'active' : ''}`} aria-pressed={sort === 'score' && order === 'desc'} onClick={() => { setSort('score'); setOrder('desc'); }}>Высокий риск</button>
+          <button className={`chip ${sort === 'expectedLoss' && order === 'desc' ? 'active' : ''}`} aria-pressed={sort === 'expectedLoss' && order === 'desc'} onClick={() => { setSort('expectedLoss'); setOrder('desc'); }}>Большие потери</button>
+        </div>
         {top.error && <p className="error">{top.error}</p>}
         {top.data && (
           <CustomersTable
-            items={sortCustomers(top.data.items, sort, order)}
+            items={top.data.items}
             sort={sort}
             order={order}
             onSort={(key) => { const [k, o] = nextSort(sort, order, key); setSort(k); setOrder(o); }}
@@ -81,7 +86,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCustomer, onSh
       </section>
 
       <section className="card">
-        <h3>Что значит «можем потерять»</h3>
+        <h3>Как рассчитаны потери</h3>
+        <p>Оценка за {s.horizonDays} дн. учитывает стоимость услуг, доступные средства клиента и риск непродления.</p>
+        <details className="explanation"><summary>Методика и разбивка по периодам оплаты</summary>
         <p>
           Для каждой живой услуги клиента считаем выручку, которую она принесёт за {s.horizonDays} дн.
           (цена, приведённая к горизонту), и умножаем на вероятность, что услугу не продлят.
@@ -95,6 +102,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCustomer, onSh
           {s.revenueFullTotal > s.revenueTotal && <> (по прайсу было бы {eur(s.revenueFullTotal)})</>}.
         </p>
         <ErrorBoundary title="Разбивка по периодам не отобразилась"><TermBreakdown summary={s} /></ErrorBoundary>
+        </details>
       </section>
 
       <section className="card">
