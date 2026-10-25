@@ -1,27 +1,6 @@
-"""Разбор и валидация снапшота из data.json.
-
-Формат — чужой (его генерирует человек со стороны данных), поэтому здесь мы
-принимаем его как есть и проверяем ровно то, что закреплено в SQL-схеме
-``data/001_schema.up.sql``:
-
-* ``accounts.email`` — уникален и непуст;
-* денежные поля — целые и неотрицательные;
-* ``bonusState`` ∈ {locked, unlocked};
-* ``services.name`` — только латиница, цифры и дефис;
-* ``expiresAt >= createdAt``;
-* ``transactions.amount`` ∈ [0, 1000];
-* ``performed`` требует ``performedAt >= createdAt``, ``not_performed`` — NULL;
-* ``services.ownerId`` и ``transactions.serviceId`` ссылаются на существующие
-  записи.
-
-Зависимостей нет намеренно: модуль проверяется офлайн (см. scripts/), а
-pydantic остаётся только в слое API, где он и нужен.
-
-Функции не мутируют вход.
-"""
 from __future__ import annotations
 
-import re
+from dataclasses import fields
 from typing import Any
 
 from backend.domain import (
@@ -38,23 +17,15 @@ from backend.domain import (
     parsetime,
 )
 
-#: Ограничение из схемы: CHECK (name ~ '^[A-Za-z0-9-]+$')
-SERVICE_NAME_RE = re.compile(r"^[A-Za-z0-9-]+$")
+AMOUNT_MIN = 0
 
-#: CHECK (amount BETWEEN 0 AND 1000)
-AMOUNT_MIN, AMOUNT_MAX = 0, 1000
-
-#: Максимум ошибок в одном сообщении.
 MAX_REPORTED_ERRORS = 5
 
 
 class SnapshotError(ValueError):
-    """Данные не соответствуют схеме. Текст пригоден для показа пользователю."""
+    pass
 
 
-# ---------------------------------------------------------------------------
-# Помощники разбора
-# ---------------------------------------------------------------------------
 def _require_obj(item: Any, where: str) -> dict:
     if not isinstance(item, dict):
         raise SnapshotError(f"{where}: ожидался объект, получено {type(item).__name__}")
@@ -109,6 +80,17 @@ def _time(value: Any, where: str, field: str):
     return as_utc(parsed)
 
 
+def _build(model, clean: dict, where: str):
+    expected = {f.name for f in fields(model)}
+    missing = expected - clean.keys()
+    if missing:  # pragma: no cover
+        raise SnapshotError(f"{where}: не заполнены поля {sorted(missing)}")
+    try:
+        return model.format_dict(clean)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SnapshotError(f"{where}: {exc}") from exc
+
+
 def _format_errors(errors: list[str], total: int) -> str:
     head = "; ".join(errors[:MAX_REPORTED_ERRORS])
     hidden = len(errors) - MAX_REPORTED_ERRORS
@@ -116,9 +98,6 @@ def _format_errors(errors: list[str], total: int) -> str:
     return f"ошибки валидации ({len(errors)} из {total} записей): {head}{suffix}"
 
 
-# ---------------------------------------------------------------------------
-# Разбор записей
-# ---------------------------------------------------------------------------
 def parse_accounts(items: list[Any], errors: list[str]) -> list[AccountDetails]:
     accounts: list[AccountDetails] = []
     seen: set[str] = set()
@@ -131,34 +110,33 @@ def parse_accounts(items: list[Any], errors: list[str]) -> list[AccountDetails]:
             if not isinstance(email, str) or not email.strip():
                 raise SnapshotError(f"{where}.email: ожидалась непустая строка")
             if email in seen:
-                # В SQL это UNIQUE-ограничение.
                 raise SnapshotError(f"{where}.email: адрес {email!r} уже встречается")
             seen.add(email)
 
             accounts.append(
-                AccountDetails(
-                    id=_int(_get(obj, "id", where), where, "id"),
-                    email=email,
-                    balance=_int(_get(obj, "balance", where, 0), where, "balance", minimum=0),
-                    withdrawBalance=_int(
+                _build(AccountDetails, {
+                    "id": _int(_get(obj, "id", where), where, "id"),
+                    "email": email,
+                    "balance": _int(_get(obj, "balance", where, 0), where, "balance", minimum=0),
+                    "withdrawBalance": _int(
                         _get(obj, "withdrawBalance", where, 0), where, "withdrawBalance", minimum=0
                     ),
-                    totalReplenished=_int(
+                    "totalReplenished": _int(
                         _get(obj, "totalReplenished", where, 0),
                         where,
                         "totalReplenished",
                         minimum=0,
                     ),
-                    bonusBalance=_int(
+                    "bonusBalance": _int(
                         _get(obj, "bonusBalance", where, 0), where, "bonusBalance", minimum=0
                     ),
-                    bonusState=_enum(
+                    "bonusState": _enum(
                         _get(obj, "bonusState", where, BonusState.LOCKED.value),
                         BonusState,
                         where,
                         "bonusState",
                     ),
-                )
+                }, where)
             )
         except SnapshotError as exc:
             errors.append(str(exc))
@@ -176,10 +154,8 @@ def parse_services(
         try:
             obj = _require_obj(raw, where)
             name = _get(obj, "name", where)
-            if not isinstance(name, str) or not SERVICE_NAME_RE.match(name):
-                raise SnapshotError(
-                    f"{where}.name: допустимы латиница, цифры и дефис, получено {name!r}"
-                )
+            if not isinstance(name, str) or not name.strip():
+                raise SnapshotError(f"{where}.name: ожидалась непустая строка, получено {name!r}")
 
             owner_id = _int(_get(obj, "ownerId", where), where, "ownerId")
             if owner_id not in known_accounts:
@@ -195,21 +171,21 @@ def parse_services(
                 )
 
             services.append(
-                ServiceDetails(
-                    id=_int(_get(obj, "id", where), where, "id"),
-                    name=name,
-                    ownerId=owner_id,
-                    paymentTerm=_enum(
+                _build(ServiceDetails, {
+                    "id": _int(_get(obj, "id", where), where, "id"),
+                    "name": name,
+                    "ownerId": owner_id,
+                    "paymentTerm": _enum(
                         _get(obj, "paymentTerm", where), PaymentTerm, where, "paymentTerm"
                     ),
-                    autoProlong=_bool(
+                    "autoProlong": _bool(
                         _get(obj, "autoProlong", where, False), where, "autoProlong"
                     ),
-                    createdAt=created_at,
-                    expiresAt=expires_at,
-                    status=_enum(_get(obj, "status", where), ServiceStatus, where, "status"),
-                    price=_int(_get(obj, "price", where), where, "price", minimum=0),
-                )
+                    "createdAt": created_at.isoformat(),
+                    "expiresAt": expires_at.isoformat(),
+                    "status": _enum(_get(obj, "status", where), ServiceStatus, where, "status"),
+                    "price": _int(_get(obj, "price", where), where, "price", minimum=0),
+                }, where)
             )
         except SnapshotError as exc:
             errors.append(str(exc))
@@ -255,21 +231,20 @@ def parse_transactions(
                 performed_at = None
 
             transactions.append(
-                TransactionDetails(
-                    id=_int(_get(obj, "id", where), where, "id"),
-                    amount=_int(
+                _build(TransactionDetails, {
+                    "id": _int(_get(obj, "id", where), where, "id"),
+                    "amount": _int(
                         _get(obj, "amount", where),
                         where,
                         "amount",
                         minimum=AMOUNT_MIN,
-                        maximum=AMOUNT_MAX,
                     ),
-                    status=status,
-                    performedAt=performed_at,
-                    createdAt=created_at,
-                    type=_enum(_get(obj, "type", where), TransactionType, where, "type"),
-                    serviceId=service_id,
-                )
+                    "status": status,
+                    "performedAt": performed_at.isoformat() if performed_at else None,
+                    "createdAt": created_at.isoformat(),
+                    "type": _enum(_get(obj, "type", where), TransactionType, where, "type"),
+                    "serviceId": service_id,
+                }, where)
             )
         except SnapshotError as exc:
             errors.append(str(exc))
@@ -277,15 +252,7 @@ def parse_transactions(
     return transactions
 
 
-# ---------------------------------------------------------------------------
-# Точка входа
-# ---------------------------------------------------------------------------
 def parse_snapshot(raw: Any) -> Snapshot:
-    """Разобрать JSON формата ``data.json`` и проверить его по схеме.
-
-    Бросает ``SnapshotError`` с описанием первых проблем — текст можно
-    отдавать пользователю как есть.
-    """
     if not isinstance(raw, dict):
         raise SnapshotError("ожидался JSON-объект с полями accounts/services/transactions")
 

@@ -1,4 +1,3 @@
-"""Авторизация: вход, текущий пользователь, выход."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -9,18 +8,26 @@ from fastapi.security import HTTPAuthorizationCredentials
 from backend.config import settings
 from backend.deps import CurrentUser, Repo, bearer_scheme
 from backend.domain import Session, utcnow
-from backend.schemas import LoginIn, TokenOut, UserOut
+from backend.schemas import LoginIn, ProvidersOut, TokenOut, UserOut
 from backend.security import create_token, decode_token, new_jti, verify_password
 
 router = APIRouter()
+
+
+@router.get("/providers", response_model=ProvidersOut, summary="Доступные способы входа")
+async def providers() -> ProvidersOut:
+    return ProvidersOut(
+        password=True,
+        oidc=settings.oidc_enabled,
+        oidcName=settings.OIDC_PROVIDER_NAME if settings.oidc_enabled else None,
+        oidcLoginUrl=f"{settings.API_PREFIX}/auth/oidc/login" if settings.oidc_enabled else None,
+    )
 
 
 @router.post("/login", response_model=TokenOut, summary="Вход по логину и паролю")
 async def login(payload: LoginIn, repository: Repo) -> TokenOut:
     user = await repository.get_user_by_username(payload.username)
     if user is None or not verify_password(payload.password, user.password_hash):
-        # Одинаковый текст для «нет пользователя» и «неверный пароль»,
-        # чтобы не подсказывать, какие логины существуют.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный логин или пароль",
@@ -49,8 +56,6 @@ async def logout(
     repository: Repo,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict[str, str]:
-    # Выход идемпотентен: без токена или с мусорным токеном всё равно "ok",
-    # но сессию удаляем только если токен действительно разобрался.
     if credentials and credentials.credentials:
         try:
             jti = decode_token(credentials.credentials).get("jti")

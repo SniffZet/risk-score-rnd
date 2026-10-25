@@ -1,6 +1,6 @@
 # PostgreSQL: аккаунты, услуги и транзакции
 
-Готовые данные: **10 аккаунтов, 30 услуг и 100 транзакций**.
+Готовые данные в `data.json`: **97 аккаунтов, 300 услуг и 1000 транзакций** (набор организаторов).
 
 ## Файлы
 
@@ -10,6 +10,7 @@
 - `002_seed.sql` — загрузка тех же записей в PostgreSQL.
 - `generate.py` — генератор JSON и SQL без сторонних Python-библиотек.
 - `test_generate.py` — проверки генератора.
+- `generate_realistic.py` и `data_realistic.json` — дополнительный набор от команды «для наглядности» (разрешено ТЗ): статусы не по кругу, а в долях живой базы хостинга (active 80 %, suspended 5 %, prolong_wait 4 %, deleted 8 %, blocked 3 %), `prolong_wait` не старше 5 дней, цены зависят от периода оплаты, история платежей согласована с балансами. Формат тот же, что у `data.json`: `python3 generate_realistic.py --accounts 300 --seed 1 --out data_realistic.json`.
 
 ## Создание таблиц и загрузка данных
 
@@ -29,7 +30,7 @@ psql -X -v ON_ERROR_STOP=1 -d DATABASE_NAME -f 001_schema.up.sql -f 002_seed.sql
 psql -X -v ON_ERROR_STOP=1 -d DATABASE_NAME -c 'SELECT (SELECT count(*) FROM public.accounts) AS accounts, (SELECT count(*) FROM public.services) AS services, (SELECT count(*) FROM public.transactions) AS transactions;'
 ```
 
-Ожидается: `10 | 30 | 100`.
+Ожидается столько же строк, сколько записей в `data.json`: `97 | 300 | 1000`.
 
 Откат **удаляет таблицы и все содержащиеся в них данные**:
 

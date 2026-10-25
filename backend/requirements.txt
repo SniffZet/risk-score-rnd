@@ -1,0 +1,13 @@
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+pydantic==2.14.1
+pydantic-settings==2.11.0
+python-jose[cryptography]==3.5.0
+passlib==1.7.4
+bcrypt==4.0.1
+sse-starlette==3.0.2
+prometheus-client==0.23.1
+python-multipart==0.0.20
+httpx==0.28.1
+authlib==1.6.12
+itsdangerous==2.2.0

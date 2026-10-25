@@ -1,54 +1,200 @@
 .sidebar {
   position: fixed;
   top: 0;
-  left: -250px; /* По умолчанию скрыта за экраном */
-  width: 250px;
+  left: 0;
+  width: var(--sidebar-width);
   height: 100vh;
-  background-color: #1a1a1a;
-  color: #fff;
-  transition: left 0.3s ease-in-out;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+  padding: 16px 12px;
+  background-color: var(--bg);
+  border-right: 1px solid var(--border);
+  color: var(--text);
   z-index: 1000;
   display: flex;
   flex-direction: column;
 }
 
-/* Класс, который активируется при isOpen === true */
-.sidebar.open {
-  left: 0;
+.sidebar .close-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    left: calc(-1 * var(--sidebar-width));
+    transition: left 0.25s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  .sidebar.open {
+    left: 0;
+    box-shadow: 2px 4px 32px rgba(0, 0, 0, 0.28);
+  }
+
+  .sidebar .close-btn {
+    display: flex;
+  }
 }
 
 .sidebar-header {
-  padding: 1rem;
+  padding: 4px 8px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #333;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-mark::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.brand-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
 }
 
 .close-btn {
-  background: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   border: none;
-  color: white;
-  font-size: 1.2rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
   cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-menu {
+  flex: 1;
 }
 
 .sidebar-menu ul {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  gap: 2px;
 }
 
-.sidebar-menu li a {
-  display: block;
-  padding: 1rem;
-  color: #ccc;
-  text-decoration: none;
-  transition: background 0.2s;
+.sidebar-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.65, 0, 0.35, 1), color 150ms cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.sidebar-menu li a:hover {
-  background-color: #333;
+.sidebar-menu button svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: color 150ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.sidebar-menu button:hover {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.sidebar-menu button.active {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.sidebar-menu button.active svg {
+  color: var(--text);
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #000;
   color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.username {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sidebar-footer button {
+  background: var(--bg);
+  border: none;
+  border-radius: 10px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.sidebar-footer button:hover {
+  background: var(--border);
+}
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--high-bg);
+  color: var(--high);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }

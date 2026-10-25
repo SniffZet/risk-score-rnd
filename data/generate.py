@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate repeatable PostgreSQL fixtures; Python 3.10+, no dependencies."""
 
 import argparse
 import calendar

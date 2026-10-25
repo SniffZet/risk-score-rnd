@@ -1,4 +1,3 @@
-"""Пароли и JWT."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -21,7 +20,6 @@ def verify_password(password: str, password_hash: str) -> bool:
     try:
         return pwd_context.verify(password, password_hash)
     except ValueError:
-        # Повреждённый хеш в хранилище — это неверный пароль, а не 500.
         return False
 
 
@@ -32,7 +30,6 @@ def create_token(user_id: int, jti: str) -> str:
 
 
 def decode_token(token: str) -> dict:
-    """Разбор токена. Бросает ``JWTError`` при любой проблеме."""
     return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
 
 

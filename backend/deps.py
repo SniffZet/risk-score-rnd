@@ -1,4 +1,3 @@
-"""FastAPI-зависимости: текущий пользователь и доступ к хранилищу."""
 from __future__ import annotations
 
 from typing import Annotated
@@ -11,7 +10,6 @@ from backend.domain import User, utcnow
 from backend.repository import Repository, get_repository
 from backend.security import decode_token
 
-#: ``auto_error=False`` — чтобы самим вернуть понятный 401 вместо 403.
 bearer_scheme = HTTPBearer(auto_error=False)
 
 

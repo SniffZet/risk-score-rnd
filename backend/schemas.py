@@ -1,21 +1,11 @@
-"""Pydantic-схемы: контракт API для фронтенда.
-
-Имена полей намеренно совпадают с моделью риска (``CustomRisk``,
-``ServiceRisk``, ``Summary`` из ``backend.risk.scoring``): так ML-человеку
-знаком ответ, а фронт получает те же названия, что и в его моках —
-``score``, ``level``, ``expectedLoss``, ``loyalty``.
-
-Правила:
-* никаких «сырых» dict в ответах;
-* мутабельные значения по умолчанию только через ``Field(default_factory=...)``;
-* входные схемы не смешиваются с выходными.
-"""
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from backend.domain import AccountDetails, PaymentTerm, ServiceStatus
 
 RiskLevel = Literal["high", "medium", "low", "no_data"]
 SortField = Literal[
@@ -31,9 +21,6 @@ SortField = Literal[
 SortOrder = Literal["asc", "desc"]
 
 
-# ---------------------------------------------------------------------------
-# Авторизация
-# ---------------------------------------------------------------------------
 class LoginIn(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=256)
@@ -49,12 +36,14 @@ class UserOut(BaseModel):
     username: str
 
 
-# ---------------------------------------------------------------------------
-# Причины риска и услуги
-# ---------------------------------------------------------------------------
-class ReasonOut(BaseModel):
-    """Совпадает с ``risk.scoring.Reason``."""
+class ProvidersOut(BaseModel):
+    password: bool = True
+    oidc: bool = False
+    oidcName: str | None = None
+    oidcLoginUrl: str | None = None
 
+
+class ReasonOut(BaseModel):
     feature: str = Field(examples=["prolong_wait"])
     title: str = Field(examples=["Ожидает оплаты"])
     serviceId: int
@@ -62,44 +51,70 @@ class ReasonOut(BaseModel):
     weight: float = Field(description="вес признака, 0..1")
     impact: float = Field(description="weight × strength")
     text: str
+    kind: Literal["risk", "protective"] = Field(default="risk", description="protective — признак снижает риск")
+
+
+class ActionOut(BaseModel):
+    code: str = Field(examples=["remind_payment"])
+    title: str = Field(examples=["Напомнить об оплате"])
+    text: str
 
 
 class ServiceRiskOut(BaseModel):
-    """Совпадает с ``risk.scoring.ServiceRisk``."""
-
     serviceId: int
     name: str
-    status: str
-    paymentTerm: str
+    status: ServiceStatus
+    paymentTerm: PaymentTerm
     price: int = Field(description="цена в еврокопейках")
     expiresAt: datetime
     autoProlong: bool
     risk: float = Field(description="риск услуги, 0..1")
-    revenue: int = Field(description="выручка в горизонте, еврокопейки")
+    revenue: int = Field(description="выручка в горизонте с учётом платёжеспособности, еврокопейки")
+    revenueFull: int = Field(description="выручка в горизонте без ограничения, еврокопейки")
     expectedLoss: int = Field(description="ожидаемые потери, еврокопейки")
+    nextChargeAt: datetime = Field(description="ближайшее списание или оплата")
     reasons: list[ReasonOut] = Field(default_factory=list)
 
 
-class CustomerListItem(BaseModel):
-    """Строка списка клиентов."""
+class TransitionOut(BaseModel):
+    at: datetime
+    serviceId: int
+    ownerId: int
+    serviceName: str
+    field: Literal["status", "autoProlong"]
+    old: str | None = None
+    new: str
 
+
+class CustomerListItem(BaseModel):
     accountId: int
     email: str
     balance: int = Field(description="баланс в еврокопейках")
     totalReplenished: int = Field(description="всего пополнений, еврокопейки")
     availableFunds: int = Field(description="доступные средства, еврокопейки")
+    capacity: int = Field(description="платёжеспособность за горизонт, еврокопейки")
     score: float | None = Field(default=None, description="0..100, null если нет живых услуг")
     level: RiskLevel = "no_data"
     loyalty: float | None = Field(default=None, description="100 − score")
     expectedLoss: int = 0
     revenue: int = 0
+    revenueFull: int = 0
+    action: ActionOut | None = Field(default=None, description="рекомендованное действие")
+    reasons: list[ReasonOut] = Field(
+        default_factory=list,
+        description="главные причины оценки по убыванию вклада (в списке — до 3, в карточке — все)",
+    )
 
 
 class CustomerDetail(CustomerListItem):
-    """Карточка клиента: добавляются причины и разбивка по услугам."""
-
+    account: AccountDetails | None = Field(
+        default=None, description="запись аккаунта в формате models.AccountDetails"
+    )
     reasons: list[ReasonOut] = Field(default_factory=list)
     services: list[ServiceRiskOut] = Field(default_factory=list)
+    history: list[TransitionOut] = Field(
+        default_factory=list, description="изменения услуг клиента, которые наблюдал анализатор"
+    )
 
 
 class CustomersPage(BaseModel):
@@ -109,43 +124,54 @@ class CustomersPage(BaseModel):
     offset: int
 
 
-# ---------------------------------------------------------------------------
-# Аналитика
-# ---------------------------------------------------------------------------
-class SummaryOut(BaseModel):
-    """Совпадает с ``risk.scoring.Summary``."""
+class FeatureImpactOut(BaseModel):
+    feature: str
+    title: str
+    weight: float
+    customers: int = Field(description="у скольких клиентов сработал")
+    services: int = Field(description="на скольких услугах сработал")
+    expectedLoss: int = Field(description="доля ожидаемых потерь, отнесённая к признаку, еврокопейки; у защитных 0")
+    kind: Literal["risk", "protective"] = "risk"
 
+
+class SummaryOut(BaseModel):
     referenceTime: datetime
     horizonDays: int
     customersTotal: int
     customersByLevel: dict[str, int]
     expectedLossTotal: int
     expectedLossByLevel: dict[str, int]
-    revenueTotal: int
+    revenueTotal: int = Field(description="выручка в горизонте с учётом платёжеспособности")
+    revenueFullTotal: int = Field(description="выручка в горизонте без ограничения")
     servicesAtRisk: int
+    revenueByTerm: dict[str, int] = Field(default_factory=dict)
+    expectedLossByTerm: dict[str, int] = Field(default_factory=dict)
+    features: list[FeatureImpactOut] = Field(default_factory=list)
 
 
 class ChurnChartPoint(BaseModel):
-    date: str
-    deleted_actual: int
-    expected_nonrenewals: int
+    date: str = Field(description="начало интервала, YYYY-MM-DD")
+    deleted: int = Field(description="факт: удалённые услуги")
+    deletedObserved: int = Field(description="из них переход в deleted наблюдался анализатором")
+    expectedNonrenewals: float = Field(description="прогноз: ожидаемое число непродлений")
+    servicesAtRisk: int = Field(description="прогноз: услуги с риском не ниже среднего порога")
 
 
-# ---------------------------------------------------------------------------
-# Настройки модели
-# ---------------------------------------------------------------------------
+class ChurnChartOut(BaseModel):
+    bucket: Literal["day", "week"]
+    referenceDate: str
+    horizonDays: int
+    points: list[ChurnChartPoint] = Field(default_factory=list)
+
+
 class FeatureMeta(BaseModel):
-    """Признак для построения формы настроек на фронте.
-
-    Границы веса (0..1) заданы здесь, чтобы фронт не хардкодил их.
-    """
-
     code: str
     title: str
     description: str
     default_weight: float
     min_weight: float = 0.0
     max_weight: float = 1.0
+    kind: Literal["risk", "protective"] = Field(default="risk", description="protective — снижает риск, а не повышает")
 
 
 class SettingsOut(BaseModel):
@@ -155,14 +181,17 @@ class SettingsOut(BaseModel):
     horizonDays: int
     expiringWindowDays: int
     prolongWaitGraceDays: int
+    paymentLookbackDays: int
     countWithdrawBalance: bool
+    capRevenueByCapacity: bool
+    bigSpenderThreshold: int = Field(description="пополнений за всё время, еврокопейки, с которых клиент крупный")
+    newCustomerDays: int
+    loyalTenureDays: int
     referenceTime: datetime | str | None = None
     features: list[FeatureMeta] = Field(default_factory=list)
 
 
 class SettingsPatch(BaseModel):
-    """Частичное обновление: приходит только то, что реально меняют."""
-
     model_config = ConfigDict(extra="forbid")
 
     weights: dict[str, float] | None = None
@@ -171,21 +200,27 @@ class SettingsPatch(BaseModel):
     horizonDays: int | None = None
     expiringWindowDays: int | None = None
     prolongWaitGraceDays: int | None = None
+    paymentLookbackDays: int | None = None
     countWithdrawBalance: bool | None = None
+    capRevenueByCapacity: bool | None = None
+    bigSpenderThreshold: int | None = None
+    newCustomerDays: int | None = None
+    loyalTenureDays: int | None = None
     referenceTime: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Загрузка снапшота
-# ---------------------------------------------------------------------------
+class SettingsPreviewOut(BaseModel):
+    settings: SettingsOut
+    summary: SummaryOut
+
+
 class SnapshotIn(BaseModel):
-    """Тело PUT /source/snapshot.
+    accounts: list[dict] = Field(default_factory=list)
+    services: list[dict] = Field(default_factory=list)
+    transactions: list[dict] = Field(default_factory=list)
 
-    Разделы объявлены списками словарей намеренно: формат ``data.json`` —
-    внешний, и строгая проверка выполняется в ``services.normalize``, которая
-    повторяет ограничения SQL-схемы и даёт понятные ошибки с номерами записей.
-    """
 
+class SnapshotPatchIn(BaseModel):
     accounts: list[dict] = Field(default_factory=list)
     services: list[dict] = Field(default_factory=list)
     transactions: list[dict] = Field(default_factory=list)
@@ -193,5 +228,7 @@ class SnapshotIn(BaseModel):
 
 class SnapshotOut(BaseModel):
     status: str = "ok"
-    counts: dict[str, int]
+    counts: dict[str, int] = Field(description="записей в данных после загрузки")
+    applied: dict[str, int] = Field(default_factory=dict, description="записей пришло в запросе")
+    transitions: int = Field(default=0, description="изменений услуг записано в журнал")
     summary: SummaryOut | None = None

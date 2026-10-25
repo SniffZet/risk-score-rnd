@@ -1,44 +1,25 @@
-"""Слой хранения: контракт + реализация в памяти.
-
-Зачем так. Базу делает человек со стороны модели, и он же владеет схемой
-(``risk-score-rnd-main/data/001_schema.up.sql``). Чтобы его работа свелась к
-«написать один класс», весь остальной код общается только с протоколом
-``Repository`` и ничего не знает про SQL.
-
-Позже достаточно добавить ``app/repository_sql.py`` с классом, реализующим
-те же методы, и переключить ``STORAGE_BACKEND=sql``. Ни роутеры, ни сервисы
-менять не придётся.
-
-Хранилище держит две вещи:
-1. данные организаторов — ``Snapshot`` (accounts / services / transactions);
-2. результаты скоринга — список ``CustomerRisk`` и ``Summary``.
-
-Результаты хранятся отдельно, потому что их считает модель, а API должен
-уметь фильтровать, сортировать и пагинировать по ним, не пересчитывая модель
-на каждый запрос.
-"""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from backend.domain import (
+    AccountDetails,
+    ChurnChart,
     CustomerRisk,
-    ServiceStatus,
     Session,
     Snapshot,
     Summary,
+    Transition,
     User,
 )
 
 
 class ConflictError(Exception):
-    """Сущность уже существует (например, username занят)."""
+    pass
 
 
 class Repository(Protocol):
-    """Контракт хранилища. Все методы асинхронные."""
-
-    # --- пользователи и сессии (наша часть, к модели отношения не имеет) ---
     async def get_user_by_username(self, username: str) -> User | None: ...
 
     async def get_user(self, user_id: int) -> User | None: ...
@@ -51,62 +32,59 @@ class Repository(Protocol):
 
     async def delete_session(self, session_id: str) -> None: ...
 
-    # --- данные организаторов ----------------------------------------------
     async def is_empty(self) -> bool:
-        """True, если данных ещё нет и нужна первичная загрузка."""
         ...
 
     async def replace_snapshot(self, snapshot: Snapshot) -> None:
-        """Атомарно заменить все данные (в SQL — одной транзакцией)."""
         ...
 
     async def get_snapshot(self) -> Snapshot: ...
 
-    # --- результаты скоринга -------------------------------------------------
+    async def get_account(self, account_id: int) -> AccountDetails | None: ...
+
     async def save_risk(
-        self, customers: list[CustomerRisk], summary: Summary
+        self, customers: list[CustomerRisk], summary: Summary, chart: ChurnChart | None = None
     ) -> None:
-        """Сохранить результат работы модели (вызывается из recompute)."""
         ...
 
     async def get_summary(self) -> Summary | None: ...
+
+    async def get_chart(self) -> ChurnChart | None: ...
 
     async def list_customers(
         self,
         *,
         search: str | None = None,
-        level: str | None = None,
+        levels: list[str] | None = None,
         sort_by: str = "accountId",
         sort_order: str = "asc",
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[CustomerRisk], int]:
-        """Вернуть (страница, всего_подходящих).
-
-        В SQL-реализации это WHERE / ORDER BY / LIMIT — без выгрузки всей
-        таблицы в память.
-        """
         ...
 
     async def get_customer(self, account_id: int) -> CustomerRisk | None: ...
 
-    async def churn_buckets(self, grace_days: int) -> dict[str, dict[str, int]]:
-        """Агрегат по дням: {"2026-01-01": {"deleted": 0, "expected": 2}}.
+    async def append_journal(self, events: list[Transition]) -> None: ...
 
-        Считается на стороне хранилища (в SQL — GROUP BY), чтобы не тянуть
-        все услуги в память.
-        """
+    async def list_journal(
+        self,
+        *,
+        account_id: int | None = None,
+        service_id: int | None = None,
+        limit: int = 100,
+    ) -> list[Transition]:
         ...
 
-    # --- настройки модели ---------------------------------------------------
+    async def observed_deletions(self) -> dict[int, datetime]:
+        ...
+
     async def get_model_settings(self) -> dict:
-        """Текущие настройки модели (уже слитые с настройками по умолчанию)."""
         ...
 
     async def save_model_settings(self, settings: dict) -> None: ...
 
 
-#: Поля, доступные для сортировки. Совпадают с именами в ответе API.
 SORT_FIELDS = (
     "accountId",
     "email",
@@ -131,18 +109,7 @@ _SORT_KEYS = {
 
 
 class MemoryRepository:
-    """Хранилище в оперативной памяти.
-
-    Подходит для разработки, тестов и демо. Данные теряются при рестарте —
-    поэтому при старте выполняется первичная загрузка из data.json.
-
-    Блокировок нет намеренно: все методы работают со структурами в памяти и
-    не содержат точек ожидания, поэтому в рамках одного event loop они
-    атомарны. Асинхронная блокировка только привязала бы хранилище к
-    конкретному циклу событий и сломала бы тесты и встраивание.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, journal_limit: int = 50_000) -> None:
         from backend.domain import default_settings
 
         self._users: dict[int, User] = {}
@@ -150,14 +117,18 @@ class MemoryRepository:
         self._sessions: dict[str, Session] = {}
 
         self._snapshot = Snapshot(accounts=[], services=[], transactions=[])
+        self._accounts_by_id: dict[int, AccountDetails] = {}
         self._customers: list[CustomerRisk] = []
         self._customers_by_id: dict[int, CustomerRisk] = {}
         self._summary: Summary | None = None
+        self._chart: ChurnChart | None = None
+
+        self._journal: list[Transition] = []
+        self._journal_limit = journal_limit
 
         self._model_settings = default_settings()
         self._next_user_id = 1
 
-    # --- пользователи и сессии ---------------------------------------------
     async def get_user_by_username(self, username: str) -> User | None:
         user_id = self._users_by_name.get(username)
         return self._users.get(user_id) if user_id is not None else None
@@ -183,39 +154,42 @@ class MemoryRepository:
     async def delete_session(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
 
-    # --- данные организаторов ----------------------------------------------
     async def is_empty(self) -> bool:
         return not self._snapshot.accounts
 
     async def replace_snapshot(self, snapshot: Snapshot) -> None:
-        """Подменить данные и сбросить результаты прошлого скоринга.
-
-        Сброс обязателен: оценки относились к старым данным, и показывать их
-        вместе с новыми — значит врать пользователю. Пересчёт выполнит
-        вызывающий (roутер загрузки или цикл по таймеру).
-        """
         self._snapshot = snapshot
+        self._accounts_by_id = {a.id: a for a in snapshot.accounts}
         self._customers = []
         self._customers_by_id = {}
         self._summary = None
+        self._chart = None
 
     async def get_snapshot(self) -> Snapshot:
         return self._snapshot
 
-    # --- результаты скоринга -------------------------------------------------
-    async def save_risk(self, customers: list[CustomerRisk], summary: Summary) -> None:
+    async def get_account(self, account_id: int) -> AccountDetails | None:
+        return self._accounts_by_id.get(account_id)
+
+    async def save_risk(
+        self, customers: list[CustomerRisk], summary: Summary, chart: ChurnChart | None = None
+    ) -> None:
         self._customers = list(customers)
         self._customers_by_id = {c.accountId: c for c in customers}
         self._summary = summary
+        self._chart = chart
 
     async def get_summary(self) -> Summary | None:
         return self._summary
+
+    async def get_chart(self) -> ChurnChart | None:
+        return self._chart
 
     async def list_customers(
         self,
         *,
         search: str | None = None,
-        level: str | None = None,
+        levels: list[str] | None = None,
         sort_by: str = "accountId",
         sort_order: str = "asc",
         limit: int = 50,
@@ -229,8 +203,9 @@ class MemoryRepository:
         if search:
             needle = search.lower()
             items = [c for c in items if needle in (c.email or "").lower()]
-        if level:
-            items = [c for c in items if c.level == level]
+        if levels:
+            wanted = set(levels)
+            items = [c for c in items if c.level in wanted]
 
         items = _sort_customers(items, sort_by, sort_order)
         total = len(items)
@@ -239,20 +214,34 @@ class MemoryRepository:
     async def get_customer(self, account_id: int) -> CustomerRisk | None:
         return self._customers_by_id.get(account_id)
 
-    async def churn_buckets(self, grace_days: int) -> dict[str, dict[str, int]]:
-        from datetime import timedelta
+    async def append_journal(self, events: list[Transition]) -> None:
+        if not events:
+            return
+        self._journal.extend(events)
+        if len(self._journal) > self._journal_limit:
+            del self._journal[: len(self._journal) - self._journal_limit]
 
-        buckets: dict[str, dict[str, int]] = {}
-        for service in self._snapshot.services:
-            if service.status == ServiceStatus.DELETED:
-                day = service.expiresAt.date().isoformat()
-                buckets.setdefault(day, {"deleted": 0, "expected": 0})["deleted"] += 1
-            elif service.status == ServiceStatus.PROLONG_WAIT:
-                day = (service.expiresAt + timedelta(days=grace_days)).date().isoformat()
-                buckets.setdefault(day, {"deleted": 0, "expected": 0})["expected"] += 1
-        return buckets
+    async def list_journal(
+        self,
+        *,
+        account_id: int | None = None,
+        service_id: int | None = None,
+        limit: int = 100,
+    ) -> list[Transition]:
+        events = self._journal
+        if account_id is not None:
+            events = [e for e in events if e.ownerId == account_id]
+        if service_id is not None:
+            events = [e for e in events if e.serviceId == service_id]
+        return list(reversed(events[-limit:])) if limit else list(reversed(events))
 
-    # --- настройки модели ---------------------------------------------------
+    async def observed_deletions(self) -> dict[int, datetime]:
+        seen: dict[int, datetime] = {}
+        for e in self._journal:
+            if e.field == "status" and e.new == "deleted":
+                seen[e.serviceId] = e.at
+        return seen
+
     async def get_model_settings(self) -> dict:
         return _copy_settings(self._model_settings)
 
@@ -261,7 +250,6 @@ class MemoryRepository:
 
 
 def _copy_settings(settings: dict) -> dict:
-    """Копия настроек, чтобы вызывающий не мог изменить состояние хранилища."""
     copy = dict(settings)
     copy["weights"] = dict(settings.get("weights", {}))
     return copy
@@ -270,23 +258,16 @@ def _copy_settings(settings: dict) -> dict:
 def _sort_customers(
     items: list[CustomerRisk], sort_by: str, sort_order: str
 ) -> list[CustomerRisk]:
-    """Сортировка с предсказуемым поведением для клиентов без оценки.
-
-    Клиенты без score (``no_data``) всегда оказываются в конце списка — и при
-    asc, и при desc. Иначе на первой странице «топа риска» оказались бы
-    записи, о которых мы вообще ничего не знаем.
-    """
     reverse = sort_order == "desc"
     key = _SORT_KEYS[sort_by]
 
     scored = [c for c in items if c.score is not None]
     unscored = [c for c in items if c.score is None]
 
-    scored.sort(key=lambda c: (key(c), c.accountId), reverse=reverse)
+    scored.sort(key=lambda c: (key(c), c.expectedLoss, c.accountId), reverse=reverse)
     return scored + sorted(unscored, key=lambda c: c.accountId)
 
 
-#: Синглтон, который создаёт приложение при старте.
 _repository: Repository | None = None
 
 
@@ -296,11 +277,10 @@ def set_repository(repo: Repository) -> None:
 
 
 def get_repository() -> Repository:
-    if _repository is None:  # pragma: no cover - защита от неверной сборки
+    if _repository is None:  # pragma: no cover
         raise RuntimeError("Repository не инициализирован: проверь lifespan в main.py")
     return _repository
 
 
 def get_repository_or_none() -> Repository | None:
-    """Текущее хранилище, если оно уже установлено (нужно тестам и lifespan)."""
     return _repository

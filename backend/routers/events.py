@@ -1,4 +1,3 @@
-"""SSE-поток событий для фронтенда."""
 from __future__ import annotations
 
 import asyncio
@@ -15,14 +14,9 @@ router = APIRouter()
 
 @router.get("/events", summary="Поток событий (SSE)")
 async def events(request: Request, _: CurrentUser) -> EventSourceResponse:
-    """Отдаёт события ``recalculated``.
-
-    Отправляем heartbeat (``ping``), чтобы прокси и браузер не закрывали
-    «тихое» соединение.
-    """
-
     async def event_generator():
         async with sse.subscription() as queue:
+            yield {"event": "ready", "data": "{}"}
             while True:
                 if await request.is_disconnected():
                     break

@@ -1,17 +1,12 @@
-"""Пересчёт рисков: хранилище → модель → хранилище + состояние.
-
-Единственное место, где бэкенд вызывает модель. Модель берёт «сейчас» из
-настроек или из самих данных (``Snapshot.latest_event``), поэтому здесь мы
-не подставляем системное время.
-
-Исключения не глотаются: их обрабатывает вызывающий (фоновая задача или
-роутер).
-"""
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import json
 import logging
+from dataclasses import asdict
 
-from backend.domain import CustomerRisk, Summary, evaluate, summarize
+from backend.domain import ChurnChart, CustomerRisk, Summary, evaluate, summarize, timeline
 from backend.repository import Repository
 from backend.services import sse
 from backend.services.metrics import refresh_metrics
@@ -20,34 +15,68 @@ from backend.state import state
 logger = logging.getLogger(__name__)
 
 
-async def recompute(repository: Repository) -> Summary:
-    """Прогнать модель по текущим данным и сохранить результат."""
+def run_model(snapshot, settings: dict, observed: dict) -> tuple[list[CustomerRisk], Summary, ChurnChart]:
+    customers = evaluate(snapshot, settings)
+    summary = summarize(customers, snapshot, settings)
+    chart = timeline(customers, snapshot, settings, observed)
+    return customers, summary, chart
+
+
+def _fingerprint(summary: Summary) -> str:
+    raw = json.dumps(asdict(summary), default=str, sort_keys=True)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+async def recompute(
+    repository: Repository,
+    *,
+    settings: dict | None = None,
+    persist_settings: bool = False,
+    reason: str = "manual",
+) -> Summary:
     snapshot = await repository.get_snapshot()
-    settings = await repository.get_model_settings()
+    if settings is None:
+        settings = await repository.get_model_settings()
+    observed = await repository.observed_deletions()
 
-    customers: list[CustomerRisk] = evaluate(snapshot, settings)
-    summary: Summary = summarize(customers, snapshot, settings)
+    customers, summary, chart = await asyncio.to_thread(run_model, snapshot, settings, observed)
 
-    await repository.save_risk(customers, summary)
+    if persist_settings:
+        await repository.save_model_settings(settings)
+    await repository.save_risk(customers, summary, chart)
 
+    fingerprint = _fingerprint(summary)
+    changed = fingerprint != state.fingerprint
     state.summary = summary
+    state.chart = chart
+    state.fingerprint = fingerprint
     state.last_updated = summary.referenceTime
     state.last_error = None
     state.recompute_count += 1
 
     refresh_metrics()
-    await sse.publish(
-        "recalculated",
-        {
-            "at": summary.referenceTime.isoformat(),
-            "customers": summary.customersTotal,
-            "expectedLossTotal": summary.expectedLossTotal,
-        },
-    )
+    if changed or reason != "timer":
+        await sse.publish(
+            "recalculated",
+            {
+                "at": summary.referenceTime.isoformat(),
+                "reason": reason,
+                "customers": summary.customersTotal,
+                "expectedLossTotal": summary.expectedLossTotal,
+            },
+        )
     logger.debug(
-        "Пересчёт завершён: клиентов %d, потери %d, услуг под риском %d",
+        "Пересчёт (%s) завершён: клиентов %d, потери %d, услуг под риском %d, изменилось=%s",
+        reason,
         summary.customersTotal,
         summary.expectedLossTotal,
         summary.servicesAtRisk,
+        changed,
     )
     return summary
+
+
+async def preview(repository: Repository, settings: dict) -> Summary:
+    snapshot = await repository.get_snapshot()
+    customers = await asyncio.to_thread(evaluate, snapshot, settings)
+    return await asyncio.to_thread(summarize, customers, snapshot, settings)

@@ -1,33 +1,17 @@
-"""Аналитика: сводка и график оттока."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from backend.deps import CurrentUser, Repo
-from backend.domain import Summary
-from backend.schemas import ChurnChartPoint, SummaryOut
+from backend.routers.convert import to_chart, to_summary, to_transition
+from backend.schemas import ChurnChartOut, SummaryOut, TransitionOut
 from backend.state import state
 
 router = APIRouter()
 
 
-def _to_summary(summary: Summary) -> SummaryOut:
-    return SummaryOut(
-        referenceTime=summary.referenceTime,
-        horizonDays=summary.horizonDays,
-        customersTotal=summary.customersTotal,
-        customersByLevel=summary.customersByLevel,
-        expectedLossTotal=summary.expectedLossTotal,
-        expectedLossByLevel=summary.expectedLossByLevel,
-        revenueTotal=summary.revenueTotal,
-        servicesAtRisk=summary.servicesAtRisk,
-    )
-
-
 @router.get("/summary", response_model=SummaryOut, summary="Сводка по рискам")
 async def summary(repository: Repo, _: CurrentUser) -> SummaryOut:
-    # Источник правды — хранилище; state используется как быстрый кэш, но
-    # после рестарта он пуст, поэтому читаем из хранилища.
     stored = await repository.get_summary()
     if stored is None:
         if state.summary is None:
@@ -36,20 +20,27 @@ async def summary(repository: Repo, _: CurrentUser) -> SummaryOut:
                 detail="Данные ещё не рассчитаны",
             )
         stored = state.summary
-    return _to_summary(stored)
+    return to_summary(stored)
 
 
-@router.get("/churn-chart", response_model=list[ChurnChartPoint], summary="График оттока по дням")
-async def churn_chart(repository: Repo, _: CurrentUser) -> list[ChurnChartPoint]:
-    # Агрегация по дням делается в хранилище (в SQL — GROUP BY), поэтому
-    # эндпоинт не зависит от общего числа услуг.
-    settings = await repository.get_model_settings()
-    buckets = await repository.churn_buckets(settings["prolongWaitGraceDays"])
-    return [
-        ChurnChartPoint(
-            date=day,
-            deleted_actual=values.get("deleted", 0),
-            expected_nonrenewals=values.get("expected", 0),
+@router.get("/churn-chart", response_model=ChurnChartOut, summary="График оттока: факт и прогноз")
+async def churn_chart(repository: Repo, _: CurrentUser) -> ChurnChartOut:
+    chart = await repository.get_chart() or state.chart
+    if chart is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Данные ещё не рассчитаны",
         )
-        for day, values in sorted(buckets.items())
-    ]
+    return to_chart(chart)
+
+
+@router.get("/journal", response_model=list[TransitionOut], summary="Журнал переходов статусов")
+async def journal(
+    repository: Repo,
+    _: CurrentUser,
+    account_id: int | None = Query(None, description="только услуги этого клиента"),
+    service_id: int | None = Query(None, description="только эта услуга"),
+    limit: int = Query(100, ge=1, le=1000),
+) -> list[TransitionOut]:
+    events = await repository.list_journal(account_id=account_id, service_id=service_id, limit=limit)
+    return [to_transition(e) for e in events]
