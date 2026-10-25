@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from backend.models import AccountDetails, BonusState
+from backend.models import AccountDetails
 
 @dataclass
 class Action:
@@ -32,11 +32,6 @@ def recommend( reasons, account: AccountDetails, shortfall: int, bigSpender: int
     reasons = [r for r in reasons if getattr(r, "kind", "risk") != "protective"]
     if not reasons:
         return None
-    fired = { r.feature for r in reasons }
-
-    if "insufficient_funds" in fired and account.bonusState == BonusState.LOCKED and account.bonusBalance > 0:
-        return Action("unlock_bonus", "Разблокировать бонусы",
-                      f"Бонусов {eur(account.bonusBalance)} хватит закрыть часть нехватки {eur(shortfall)} на продления: разблокировка дешевле скидки")
     top = reasons[0]
     if top.feature == "insufficient_funds" and account.totalReplenished >= bigSpender:
         return Action("vip_topup", "Персональное предложение на пополнение",

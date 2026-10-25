@@ -197,7 +197,7 @@ class Scenarios( unittest.TestCase ):
         self.assertEqual(remind.action.code, "remind_payment")
         bonus = score_one([account(balance=0, bonus=5000)],
                           [service(status="prolong_wait", expires="2026-10-18T15:00:00.000Z")])
-        self.assertEqual(bonus.action.code, "unlock_bonus")
+        self.assertEqual(bonus.action.code, "topup_nudge")  # zablokirovannye bonusy ne menyayut deistvie
         auto = score_one([account()], [service(auto=False, expires="2026-10-21T15:00:00.000Z")])
         self.assertEqual(auto.action.code, "enable_autoprolong")
 
