@@ -7,7 +7,7 @@ from backend.models import Snapshot
 from backend.risk.features import eur
 from backend.risk.scoring import evaluate, summarize
 
-sys.stdout.reconfigure(encoding="utf-8") # consos' tests
+sys.stdout.reconfigure(encoding="utf-8")
 
 path = sys.argv[1] if len(sys.argv) > 1 else "data/data.json"
 top = int(sys.argv[2]) if len(sys.argv) > 2 else 10

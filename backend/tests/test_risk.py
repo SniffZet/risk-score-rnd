@@ -13,7 +13,6 @@ from backend.risk.scoring import evaluate, summarize, timeline
 NOW = "2026-10-19T15:00:00.000Z"
 DATA = Path(__file__).resolve().parents[2] / "data" / "data.json"
 
-# u kazhdogo testovogo klienta est' istoriya popolnenii: inache platezhesposobnost' nulevaya i terjat' nechego
 def account( id=1, balance=100_000, bonus=0, bonusState="locked", replenished=None ):
     return { "id": id, "email": f"user-{id}@example.test", "balance": balance, "withdrawBalance": 0,
              "totalReplenished": balance + 50_000 if replenished is None else replenished,
@@ -78,6 +77,30 @@ class Scenarios( unittest.TestCase ):
         c = score_one([account()], [service(auto=False, expires="2027-10-19T15:00:00.000Z")])
         self.assertNotIn("expiring_without_autoprolong", fired(c))
 
+    def test_hourly_and_weekly_expiry_window( self ):
+        hourly = service(term="hour", auto=False, expires="2026-10-19T15:30:00.000Z")
+        self.assertNotIn("expiring_without_autoprolong", fired(score_one([account()], [hourly])))
+        weekly = lambda expires: score_one([account()], [service(term="week", auto=False, expires=expires)])
+        self.assertNotIn("expiring_without_autoprolong", fired(weekly("2026-10-24T15:00:00.000Z")))
+        self.assertIn("expiring_without_autoprolong", fired(weekly("2026-10-20T15:00:00.000Z")))
+
+    def test_far_shortfall_is_weaker( self ):
+        near = score_one([account(balance=0)], [service(expires="2026-10-22T15:00:00.000Z")])
+        far = score_one([account(balance=0)], [service(expires="2026-11-15T15:00:00.000Z")])
+        strength = lambda c: next(r.strength for r in c.reasons if r.feature == "insufficient_funds")
+        self.assertEqual(strength(near), 1.0)
+        self.assertLess(strength(far), 0.5)
+        self.assertGreaterEqual(strength(far), 0.25)
+        self.assertLess(far.score, near.score)
+
+    def test_big_spender_gets_vip_action( self ):
+        drained = [service(expires="2026-10-22T15:00:00.000Z", price=500)]
+        vip = score_one([account(balance=100, replenished=200_000)], drained)
+        self.assertEqual(vip.action.code, "vip_topup")
+        plain = score_one([account(balance=100, replenished=50_000)], drained)
+        self.assertEqual(plain.action.code, "topup_nudge")
+        self.assertEqual(vip.score, plain.score)
+
     def test_unlocked_bonus_covers_renewal( self ):
         services = [service(expires="2026-10-25T15:00:00.000Z", price=500)]
         locked = score_one([account(balance=0, bonus=1000)], services)
@@ -99,6 +122,15 @@ class Scenarios( unittest.TestCase ):
         reason = next(r for r in c.reasons if r.feature == "failed_payments")
         self.assertEqual(reason.strength, 0.5)
 
+    def test_failed_payments_skips_attempt_behind_prolong_wait( self ):
+        waiting = [service(status="prolong_wait", expires="2026-10-18T15:00:00.000Z")]
+        last = tx(2, 1, performed=False, created="2026-10-18T15:00:00.000Z")
+        self.assertNotIn("failed_payments", fired(score_one([account()], waiting, [tx(1, 1), last])))
+        earlier = tx(3, 1, performed=False, created="2026-09-18T15:00:00.000Z")
+        c = score_one([account()], waiting, [tx(1, 1), earlier, last])
+        reason = next(r for r in c.reasons if r.feature == "failed_payments")
+        self.assertEqual(reason.strength, 0.5)
+
     def test_failed_payments_ignores_old_attempts( self ):
         old = "2025-01-01T00:00:00.000Z"
         c = score_one([account()], [service()], [tx(1, 1, created=old), tx(2, 1, performed=False, created=old)])
@@ -111,10 +143,12 @@ class Scenarios( unittest.TestCase ):
         c = score_one([account()], [service(id=1), service(id=2), service(id=3, status="deleted")])
         self.assertEqual(sum(1 for r in c.reasons if r.feature == "deleted_services"), 1)
 
-    def test_blocked_and_deleted_are_separate_features( self ):
-        c = score_one([account()], [service(id=1), service(id=2, status="blocked"), service(id=3, status="deleted")])
-        self.assertIn("blocked_services", fired(c))
-        self.assertIn("deleted_services", fired(c))
+    def test_deleted_hourly_servers_are_not_churn( self ):
+        hourly = [service(id=1), service(id=2, term="hour", status="deleted"), service(id=3, term="hour", status="deleted")]
+        self.assertNotIn("deleted_services", fired(score_one([account()], hourly)))
+        c = score_one([account()], [service(id=1), service(id=2, term="hour"), service(id=3, status="deleted")])
+        reason = next(r for r in c.reasons if r.feature == "deleted_services")
+        self.assertEqual(reason.strength, 0.5)
 
     def test_only_churned_services_means_no_data( self ):
         c = score_one([account()], [service(status="deleted"), service(id=2, status="blocked")])
@@ -140,7 +174,6 @@ class Scenarios( unittest.TestCase ):
         self.assertEqual(c.expectedLoss, 0)
 
     def test_capacity_caps_hourly_revenue( self ):
-        # pochasovaya usluga za 30 dnei stoit 720 cen, a klient stol'ko nikogda ne platil
         services = [service(term="hour", price=500, expires="2026-10-19T16:00:00.000Z")]
         capped = score_one([account(balance=100_000)], services)
         self.assertEqual(capped.revenueFull, 500 * 30 * 24)
@@ -150,7 +183,6 @@ class Scenarios( unittest.TestCase ):
         self.assertEqual(raw.revenue, raw.revenueFull)
 
     def test_tie_in_score_is_broken_by_money( self ):
-        # oba v prolong_wait s istekshim srokom -> odinakovyi score, vyshe tot, gde bol'she poter'
         snapshot = snapshot_of(
             [account(id=1, balance=0), account(id=2, balance=0)],
             [service(id=1, owner=1, status="prolong_wait", expires="2026-09-01T00:00:00.000Z", price=100),
@@ -171,22 +203,6 @@ class Scenarios( unittest.TestCase ):
 
 
 class NewFeatures( unittest.TestCase ):
-    def test_never_renewed_needs_full_period_without_renewals( self ):
-        old = service(auto=False)  # sozdana 2026-01-01, mesyac proshel
-        self.assertIn("never_renewed", fired(score_one([account()], [old])))
-        self.assertNotIn("never_renewed", fired(score_one([account()], [old], [tx(1, 1)])))
-        self.assertNotIn("never_renewed", fired(score_one([account()], [service(auto=True)])))
-        young = service(auto=False, created="2026-10-10T00:00:00.000Z")
-        self.assertNotIn("never_renewed", fired(score_one([account()], [young])))
-
-    def test_big_spender_drained( self ):
-        c = score_one([account(balance=100, replenished=200_000)], [service(price=500)])
-        reason = next(r for r in c.reasons if r.feature == "big_spender_drained")
-        self.assertAlmostEqual(reason.strength, 0.8)
-        self.assertEqual(c.action.code, "vip_topup")
-        self.assertNotIn("big_spender_drained", fired(score_one([account(balance=100, replenished=50_000)], [service(price=500)])))
-        self.assertNotIn("big_spender_drained", fired(score_one([account(balance=1000, replenished=200_000)], [service(price=500)])))
-
     def test_new_customer_fades_and_ignores_future_dates( self ):
         c = score_one([account()], [service(created="2026-10-10T15:00:00.000Z")])
         reason = next(r for r in c.reasons if r.feature == "new_customer")
@@ -195,17 +211,46 @@ class NewFeatures( unittest.TestCase ):
         future = service(created="2027-01-01T00:00:00.000Z", expires="2027-02-01T00:00:00.000Z")
         self.assertNotIn("new_customer", fired(score_one([account()], [future])))
 
-    def test_renewal_cluster( self ):
-        pair = [service(id=1, expires="2026-10-20T15:00:00.000Z", price=600),
-                service(id=2, expires="2026-10-21T15:00:00.000Z", price=600)]
-        c = score_one([account(balance=500)], pair)
-        reason = next(r for r in c.reasons if r.feature == "renewal_cluster")
-        self.assertAlmostEqual(reason.strength, 700 / 1200, places=2)  # sila okruglyaetsya do 3 znakov
-        self.assertNotIn("renewal_cluster", fired(score_one([account(balance=5000)], pair)))
-        self.assertNotIn("renewal_cluster", fired(score_one([account(balance=500)], pair[:1])))
+    def test_first_renewal_only_in_first_period( self ):
+        first = service(created="2026-09-21T15:00:00.000Z", expires="2026-10-21T15:00:00.000Z")
+        c = score_one([account()], [first])
+        reason = next(r for r in c.reasons if r.feature == "first_renewal")
+        self.assertAlmostEqual(reason.strength, 1 - 2 / 7, places=2)
+        self.assertEqual(c.action.code, "first_renewal_check")
+        renewed = service(created="2026-08-21T15:00:00.000Z", expires="2026-10-21T15:00:00.000Z")
+        self.assertNotIn("first_renewal", fired(score_one([account()], [renewed])))
+        far = service(created="2026-09-01T15:00:00.000Z", expires="2026-10-01T15:00:00.000Z", status="prolong_wait")
+        self.assertNotIn("first_renewal", fired(score_one([account()], [far])))
+        hourly = service(term="hour", created="2026-10-19T14:30:00.000Z", expires="2026-10-19T15:30:00.000Z")
+        self.assertNotIn("first_renewal", fired(score_one([account()], [hourly])))
+
+    def test_recent_expansion_softens_old_client( self ):
+        old = service(id=1)
+        fresh = service(id=2, created="2026-10-10T15:00:00.000Z", expires="2026-11-10T15:00:00.000Z")
+        risky = [tx(1, 1), tx(2, 1, performed=False)]
+        off = { "recent_expansion": 0, "long_tenure_autoprolong": 0 }
+        plain = score_one([account()], [old, fresh], risky, weights=off)
+        soft = score_one([account()], [old, fresh], risky, weights={ "long_tenure_autoprolong": 0 })
+        reason = next(r for r in soft.reasons if r.feature == "recent_expansion")
+        self.assertEqual(reason.kind, "protective")
+        self.assertIn("service-2", reason.text)
+        self.assertAlmostEqual(soft.score, round(plain.score * 0.7, 1), delta=0.1)
+        young = service(id=1, created="2026-10-01T15:00:00.000Z")
+        self.assertNotIn("recent_expansion", fired(score_one([account()], [young, fresh], risky)))
+        hourly = service(id=2, term="hour", created="2026-10-10T15:00:00.000Z", expires="2026-10-19T16:00:00.000Z")
+        self.assertNotIn("recent_expansion", fired(score_one([account()], [old, hourly], risky)))
+        dropped = service(id=2, status="deleted", created="2026-10-10T15:00:00.000Z", expires="2026-11-10T15:00:00.000Z")
+        self.assertNotIn("recent_expansion", fired(score_one([account()], [old, dropped], risky)))
+
+    def test_new_server_next_to_waiting_one_is_migration( self ):
+        waiting = service(id=1, status="prolong_wait", expires="2026-10-18T15:00:00.000Z")
+        fresh = service(id=2, created="2026-10-10T15:00:00.000Z", expires="2026-11-10T15:00:00.000Z")
+        c = score_one([account()], [waiting, fresh])
+        byId = { s.serviceId: { r.feature for r in s.reasons } for s in c.services }
+        self.assertNotIn("recent_expansion", byId[1])
 
     def test_protective_lowers_risk_only_for_active( self ):
-        risky = [tx(1, 1), tx(2, 1, performed=False)]  # failed_payments: sila 0.5
+        risky = [tx(1, 1), tx(2, 1, performed=False)]
         plain = score_one([account()], [service()], risky, weights={ "long_tenure_autoprolong": 0 })
         guarded = score_one([account()], [service()], risky)
         self.assertLess(guarded.score, plain.score)
@@ -218,6 +263,62 @@ class NewFeatures( unittest.TestCase ):
         poor = score_one([account(balance=600)], [service()], risky)
         self.assertNotIn("long_tenure_autoprolong", fired(poor))
 
+    def test_late_payer_habit_softens_waiting( self ):
+        waiting = [service(status="prolong_wait", expires="2026-10-17T15:00:00.000Z")]
+        late = [tx(1, 1, created="2026-07-03T00:00:00.000Z"), tx(2, 1, created="2026-08-03T00:00:00.000Z"),
+                tx(3, 1, created="2026-09-02T12:00:00.000Z")]
+        plain = score_one([account()], waiting, late, weights={ "pays_late_but_pays": 0 })
+        soft = score_one([account()], waiting, late)
+        reason = next(r for r in soft.reasons if r.feature == "pays_late_but_pays")
+        self.assertEqual(reason.kind, "protective")
+        self.assertEqual(reason.strength, 1.0)
+        self.assertAlmostEqual(soft.score, round(plain.score * 0.7, 1), delta=0.1)
+        self.assertEqual(soft.action.code, "remind_payment")
+
+    def test_late_payer_habit_ignores_early_and_auto_payments( self ):
+        waiting = [service(status="prolong_wait", expires="2026-10-17T15:00:00.000Z")]
+        early = [tx(1, 1, created="2026-06-20T00:00:00.000Z"), tx(2, 1, created="2026-07-20T00:00:00.000Z")]
+        self.assertNotIn("pays_late_but_pays", fired(score_one([account()], waiting, early)))
+        auto = [tx(1, 1, created="2026-07-01T00:00:00.000Z"), tx(2, 1, created="2026-08-01T00:00:00.000Z")]
+        self.assertNotIn("pays_late_but_pays", fired(score_one([account()], waiting, auto)))
+        single = [tx(1, 1, created="2026-07-03T00:00:00.000Z")]
+        self.assertNotIn("pays_late_but_pays", fired(score_one([account()], waiting, single)))
+        calm = score_one([account()], [service()], [tx(1, 1, created="2026-07-03T00:00:00.000Z"), tx(2, 1, created="2026-08-03T00:00:00.000Z")])
+        self.assertNotIn("pays_late_but_pays", fired(calm))
+
+    def test_lateness_for_hourly_and_weekly_terms( self ):
+        from datetime import timedelta
+        from backend.models import parsetime
+        from backend.risk.features import lateness
+        hourly = Snapshot.format_dict({ "accounts": [account()], "services": [service(term="hour")], "transactions": [] }).services[0]
+        self.assertEqual(lateness(parsetime("2026-01-01T05:10:00Z"), hourly), timedelta(minutes=10))
+        self.assertEqual(lateness(parsetime("2026-01-01T04:50:00Z"), hourly), -timedelta(minutes=10))
+        weekly = Snapshot.format_dict({ "accounts": [account()], "services": [service(term="week")], "transactions": [] }).services[0]
+        self.assertEqual(lateness(parsetime("2026-01-10T00:00:00Z"), weekly), timedelta(days=2))
+
+    def test_reliable_manual_renewer_softens_expiry( self ):
+        # sozdana 2026-01-01: oplaty 1-go chisla - vovremya
+        expiring = [service(auto=False, expires="2026-10-21T15:00:00.000Z")]
+        onTime = [tx(1, 1, created="2026-07-01T00:00:00.000Z"), tx(2, 1, created="2026-08-01T00:00:00.000Z"),
+                  tx(3, 1, created="2026-09-01T00:00:00.000Z")]
+        plain = score_one([account()], expiring, onTime, weights={ "reliable_manual_renewer": 0 })
+        soft = score_one([account()], expiring, onTime)
+        reason = next(r for r in soft.reasons if r.feature == "reliable_manual_renewer")
+        self.assertEqual(reason.kind, "protective")
+        self.assertEqual(reason.strength, 0.5)
+        self.assertAlmostEqual(soft.score, plain.score * 0.85, delta=0.15)  # score okruglen do 0.1
+        self.assertEqual(soft.action.code, "enable_autoprolong")
+        # nedavnyaya neoplata, malo istorii, pozdnie oplaty - zashchity net
+        failed = onTime + [tx(4, 1, performed=False, created="2026-10-01T00:00:00.000Z")]
+        self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, failed)))
+        self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, onTime[:2])))
+        late = [tx(1, 1, created="2026-07-03T00:00:00.000Z"), tx(2, 1, created="2026-08-03T00:00:00.000Z"),
+                tx(3, 1, created="2026-09-03T00:00:00.000Z")]
+        self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], expiring, late)))
+        # bez istecheniya snizhat' nechego
+        calm = [service(auto=False, expires="2027-10-19T15:00:00.000Z")]
+        self.assertNotIn("reliable_manual_renewer", fired(score_one([account()], calm, onTime)))
+
     def test_protective_hidden_without_risk( self ):
         c = score_one([account()], [service()], [tx(1, 1)])
         self.assertEqual(c.score, 0)
@@ -226,7 +327,6 @@ class NewFeatures( unittest.TestCase ):
 
 class Chart( unittest.TestCase ):
     def test_forecast_never_lands_in_the_past( self ):
-        # prolong_wait istek 400 dnei nazad: udalenie zhdem segodnya, a ne v proshlom
         snapshot = snapshot_of([account(balance=0)], [
             service(id=1, status="prolong_wait", expires="2025-09-14T16:00:00.000Z", created="2025-09-14T15:00:00.000Z"),
             service(id=2, status="deleted", expires="2025-10-14T16:00:00.000Z", created="2025-09-14T15:00:00.000Z"),
@@ -300,7 +400,6 @@ class Dataset( unittest.TestCase ):
         for c in customers:
             if c.score is not None:
                 self.assertTrue(0 <= c.score <= 100)
-        # vklady priznakov raskladyvayut poteri bez ostatka (s tochnost'yu do okrugleniya)
         attributed = sum(f.expectedLoss for f in summary.features)
         self.assertAlmostEqual(attributed, summary.expectedLossTotal, delta=len(snapshot.services))
         self.assertEqual(sum(summary.expectedLossByTerm.values()), summary.expectedLossTotal)

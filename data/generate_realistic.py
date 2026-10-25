@@ -31,6 +31,7 @@ def generate(n_accounts, seed):
         balance = min(int(rng.lognormvariate(8.3, 1.3)), 300_000)
         paid_total = 0
         n_services = rng.choices([1, 2, 3, 4, 5], [35, 30, 20, 10, 5])[0]
+        late_payer = rng.random() < 0.15  # платит через день-четыре после срока, но платит
         for _ in range(n_services):
             sid += 1
             term = rng.choices(TERMS, TERM_W)[0]
@@ -63,8 +64,9 @@ def generate(n_accounts, seed):
                     break
                 tid += 1
                 failed = (status == "prolong_wait" and k == periods - 1) or rng.random() < 0.06
+                paid_at = moment + (timedelta(days=rng.uniform(1, 4)) if late_payer else timedelta(minutes=2))
                 transactions.append({"id": tid, "amount": price, "status": "not_performed" if failed else "performed",
-                                     "performedAt": None if failed else iso(moment + timedelta(minutes=2)),
+                                     "performedAt": None if failed else iso(paid_at),
                                      "createdAt": iso(moment), "type": "prolong", "serviceId": sid})
                 if not failed:
                     paid_total += price

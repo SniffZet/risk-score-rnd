@@ -217,7 +217,7 @@ export const SettingsPage: React.FC = () => {
               value={Math.round(draft.bigSpenderThreshold / 100)}
               onChange={(e) => { if (e.target.value !== '') change({ bigSpenderThreshold: Math.round(Number(e.target.value) * 100) }); }}
             />
-            <small className="muted">сумма пополнений за всё время, с которой клиент считается крупным</small>
+            <small className="muted">сумма пополнений за всё время, с которой при нехватке денег предлагается персональное предложение</small>
           </label>
           <label className="field">
             <span>Момент расчёта</span>

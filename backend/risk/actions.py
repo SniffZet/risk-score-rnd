@@ -22,19 +22,13 @@ ACTIONS = {
         "Сервер выключен, но оплачивается: предложить паузу тарифа, даунгрейд или помощь с настройкой"),
     "deleted_services": ("winback", "Удержание через поддержку",
         "Клиент уже удалял услуги: персональное предложение до истечения оставшихся"),
-    "blocked_services": ("resolve_block", "Разобрать блокировку",
-        "Есть заблокированная услуга: связаться и снять конфликт, иначе уйдут и остальные"),
-    "never_renewed": ("enable_autoprolong", "Предложить включить автопродление",
-        "Клиент ни разу не продлевал услугу вручную: автопродление снимает риск просто забыть"),
-    "big_spender_drained": ("vip_topup", "Персональное предложение на пополнение",
-        "Клиент много платил и остался без денег: персональный бонус за пополнение дешевле, чем новый клиент"),
     "new_customer": ("onboarding", "Онбординг",
         "Первый месяц: убедиться, что услуга настроена и используется, предложить помощь"),
-    "renewal_cluster": ("warn_cluster", "Предупредить о серии списаний",
-        "Несколько услуг продлеваются в одни дни: заранее сказать, сколько нужно на балансе"),
+    "first_renewal": ("first_renewal_check", "Связаться до первого продления",
+        "Заканчивается первый период: спросить, всё ли работает, помочь с настройкой и напомнить о продлении"),
 }
 
-def recommend( reasons, account: AccountDetails, shortfall: int ):
+def recommend( reasons, account: AccountDetails, shortfall: int, bigSpender: int ):
     reasons = [r for r in reasons if getattr(r, "kind", "risk") != "protective"]
     if not reasons:
         return None
@@ -44,6 +38,9 @@ def recommend( reasons, account: AccountDetails, shortfall: int ):
         return Action("unlock_bonus", "Разблокировать бонусы",
                       f"Бонусов {eur(account.bonusBalance)} хватит закрыть часть нехватки {eur(shortfall)} на продления: разблокировка дешевле скидки")
     top = reasons[0]
+    if top.feature == "insufficient_funds" and account.totalReplenished >= bigSpender:
+        return Action("vip_topup", "Персональное предложение на пополнение",
+                      f"Клиент пополнил {eur(account.totalReplenished)} за всё время, а на продления не хватает {eur(shortfall)}: персональный бонус дешевле нового клиента")
     if top.feature == "insufficient_funds":
         return Action("topup_nudge", "Предложить пополнить баланс",
                       f"На продления в горизонте не хватает {eur(shortfall)}: предложить пополнение с бонусом")

@@ -8,6 +8,8 @@ import { date, eur, pct, score, STATUS_LABEL, TERM_LABEL } from '../format';
 
 export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id, onBack }) => {
   const { data: c, error } = useResource(() => api.customer(id), [id]);
+  const { data: settings } = useResource(() => api.settings(), []);
+  const horizon = settings ? `за ${settings.horizonDays} дн.` : 'за горизонт';
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -54,8 +56,8 @@ export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id,
               <div className="tile-label">Можем потерять</div>
               <div className="tile-value">{eur(c.expectedLoss)}</div>
               <div className="tile-sub">
-                из {eur(c.revenue)} выручки в горизонте
-                {c.revenueFull > c.revenue && <> · по прайсу {eur(c.revenueFull)}, ограничено платёжеспособностью {eur(c.capacity)}</>}
+                из {eur(c.revenue)}, которые клиент заплатит {horizon}
+                {c.revenueFull > c.revenue && <>. Услуги стоят {eur(c.revenueFull)}, но столько у клиента не наберётся</>}
               </div>
             </div>
             <div className="tile">
@@ -66,7 +68,7 @@ export const CustomerPage: React.FC<{ id: number; onBack: () => void }> = ({ id,
             <div className="tile">
               <div className="tile-label">Пополнено всего</div>
               <div className="tile-value">{eur(c.totalReplenished)}</div>
-              <div className="tile-sub">способен заплатить за горизонт {eur(c.capacity)}</div>
+              <div className="tile-sub">{horizon} способен заплатить {eur(c.capacity)}</div>
             </div>
           </div>
 

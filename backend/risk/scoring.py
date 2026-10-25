@@ -18,7 +18,7 @@ class Reason:
     weight: float
     impact: float # weight * strength
     text: str
-    kind: str = "risk" # protective - snizhaet risk
+    kind: str = "risk"
 
 @dataclass
 class ServiceRisk:
@@ -30,8 +30,8 @@ class ServiceRisk:
     expiresAt: datetime
     autoProlong: bool
     risk: float
-    revenue: int        # vyruchka v gorizonte s uchetom platezhesposobnosti klienta
-    revenueFull: int    # ta zhe vyruchka bez ogranicheniya
+    revenue: int
+    revenueFull: int
     expectedLoss: int
     nextChargeAt: datetime
     reasons: list = field(default_factory=list)
@@ -151,8 +151,8 @@ def payment_capacity( account, services, funds, now, horizonDays ):
 
 def score_service( service, ctx ):
     reasons = []
-    survive = 1.0 # П(1 - w*f) po riskovym priznakam
-    protect = 1.0 # П(1 - w*f) po zashchitnym: umen'shaet itogovyi risk
+    survive = 1.0
+    protect = 1.0
     for uid, f in FEATURES.items():
         w = ctx.settings["weights"].get(uid, f.baseWeight)
         if w <= 0:
@@ -169,7 +169,6 @@ def score_service( service, ctx ):
 
     base = 1 - survive
     if base <= 0:
-        # snizhat' nechego: zashchitnye prichiny u zdorovogo klienta tol'ko putayut
         reasons = [r for r in reasons if r.kind != "protective"]
         protect = 1.0
     risk = base * protect # (1 - П(1 - w*f)) * П(1 - w*p)
@@ -191,14 +190,12 @@ def score_customer( account, services, txByService, now, settings ):
     capacity = payment_capacity(account, services, funds, now, horizon)
     full = sum(s.revenueFull for s in scored)
     if settings["capRevenueByCapacity"] and full > capacity:
-        # bol'she, chem klient sposoben zaplatit', my by i tak ne poluchili
         for s in scored:
             s.revenue = round(s.revenueFull * capacity / full)
             s.expectedLoss = round(s.risk * s.revenue)
     scored.sort(key=lambda s: s.risk, reverse=True)
     score = round(100 * scored[0].risk, 1) if scored else None
 
-    # priznaki urovnya akkaunta srabatyvayut na kazhdoi usluge, ostavlyaem odin raz
     reasons = []
     for r in sorted([r for s in scored for r in s.reasons], key=lambda r: r.impact, reverse=True):
         if not any(x.feature == r.feature and x.text == r.text for x in reasons):
@@ -218,7 +215,7 @@ def score_customer( account, services, txByService, now, settings ):
         expectedLoss=sum(s.expectedLoss for s in scored),
         revenue=sum(s.revenue for s in scored),
         revenueFull=full,
-        action=recommend(reasons, account, shortfall),
+        action=recommend(reasons, account, shortfall, settings["bigSpenderThreshold"]),
         reasons=reasons,
         services=scored,
     )
